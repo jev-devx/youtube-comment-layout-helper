@@ -22,14 +22,32 @@ import { createOrchestrator } from "./app/orchestrator/index.js";
     } catch {}
   };
 
+  const applyAmbientFlags = () => {
+    const html = document.documentElement;
+
+    if (settings.enabled) {
+      html.dataset.ytCommentExtEnabled = "1";
+      html.dataset.ytCommentExtAmbientOff = "1";
+    } else {
+      delete html.dataset.ytCommentExtEnabled;
+      delete html.dataset.ytCommentExtAmbientOff;
+    }
+  };
+
   const applyEnabledState = () => {
     if (settings.enabled) {
       orc.apply();
+
       // enabled 中は moveLeft も毎回反映
       orc.syncMoveLeft();
+
+      // アンビエント効果を無効化する
+      applyAmbientFlags();
+
       console.log("[YCLH] orc.apply() ok", location.href);
     } else {
       orc.restore();
+      applyAmbientFlags();
       console.log("[YCLH] orc.restore() ok", location.href);
     }
     updateRuntimeToPopup();

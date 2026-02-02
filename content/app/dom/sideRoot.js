@@ -29,19 +29,24 @@ export const ensureSideTabs = (sideRoot, { onTabClick } = {}) => {
     tabs = document.createElement("div");
     tabs.id = IDS.tabs;
 
+    tabs.classList.add("yclh-side-tabs-bar");
+
     const mkBtn = (name, label) => {
       const b = document.createElement("button");
       b.type = "button";
-      b.dataset.tab = name; // "comments" | "related"
+      b.dataset.tab = name;
       b.textContent = label;
+
+      b.classList.add("yclh-side-tab");
+
       return b;
     };
 
-    tabs.appendChild(mkBtn("comments", "Comments"));
-    tabs.appendChild(mkBtn("related", "Related"));
-    tabs.appendChild(mkBtn("playlist", "Playlist"));
+    tabs.appendChild(mkBtn("comments", "コメント"));
+    tabs.appendChild(mkBtn("related", "関連動画"));
+    tabs.appendChild(mkBtn("playlist", "再生リスト"));
+    tabs.appendChild(mkBtn("chat", "チャット"));
 
-    // side の先頭へ（tabsが上、panelsが下）
     safeInsertBefore(sideRoot, tabs, sideRoot.firstChild);
   }
 

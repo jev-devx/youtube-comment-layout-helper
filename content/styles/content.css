@@ -1,12 +1,5 @@
 /* ------------------------------------------------------------
- * debug flag
- * ---------------------------------------------------------- */
-html[data-yclh="1"] {
-  /* outline: 1px solid #00f; */
-}
-
-/* ------------------------------------------------------------
- * layoutRoot = viewport内に収まる「箱」
+ * layoutRoot
  * ---------------------------------------------------------- */
 html[data-yclh="1"] #yclh-layout-root {
   /* outline: 2px solid #ff0; */
@@ -29,6 +22,7 @@ html[data-yclh="1"] #yclh-side {
   height: 100%;
   max-height: 100%;
   overflow: hidden;
+  min-width: 0;
 }
 
 html[data-yclh="1"] #secondary-inner {
@@ -38,41 +32,188 @@ html[data-yclh="1"] #secondary-inner {
 /* ------------------------------------------------------------
  * tabs
  * ---------------------------------------------------------- */
-#yclh-tabs {
+html[data-yclh="1"] #yclh-tabs {
   display: flex;
   gap: 8px;
+  width: 100%;
+  box-sizing: border-box;
+  flex: 0 0 auto;
+  padding: 8px;
+  overflow: hidden;
 }
 
-#yclh-tabs button[data-tab] {
-  cursor: pointer;
-  padding: 6px 10px;
+html[data-yclh="1"] #yclh-tabs button[data-tab] {
+  flex: 1 1 0; /* 均等幅 + 縮む */
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
+/* 選択中：赤で強調 */
 #yclh-tabs button[data-active="1"] {
-  font-weight: 700;
-  text-decoration: underline;
+  font-weight: 600;
+  background: rgba(255, 42, 42, 0.3) !important;
+  pointer-events: none;
+}
+
+/* バーを横幅いっぱいに広げる */
+.yclh-side-tabs-bar {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+
+  width: 100%;
+  justify-content: center;
+
+  padding: 6px;
+  border-radius: 10px;
+  background: #0f0f0f;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+/* 各タブを均等幅にする */
+.yclh-side-tab {
+  flex: 1 1 0;
+  min-width: 0;
+  text-align: center;
+
+  position: relative;
+  appearance: none;
+  border: 0;
+  cursor: pointer;
+
+  padding: 8px 10px;
+  border-radius: 999px;
+
+  background: transparent;
+  color: #f1f1f1;
+  font-size: 14px;
+  line-height: 1;
+
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 /* ------------------------------------------------------------
  * panels
  * ---------------------------------------------------------- */
-#yclh-panels {
-  /* outline: 1px solid #0f0; */
-
+html[data-yclh="1"] #yclh-panels {
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
   position: relative;
-  overflow: hidden; /* panelの畳み込みで外に出さない */
+
+  /* サイドパネルの下部余白 */
+  padding-bottom: 32px;
 }
 
 /* panel本体：ここが独立スクロール領域 */
 #yclh-panel-comments,
 #yclh-panel-related,
 #yclh-panel-playlist {
-  /* outline: 2px solid #f0f; */
-
-  overflow: auto;
-  max-height: var(--yclh-panels-h, 70vh);
-
+  height: 100%;
+  overflow-x: hidden;
+  min-height: 0;
   overscroll-behavior: contain;
+}
+
+/* ---------------------
+ * related
+ * ------------------- */
+/* related パネル自体 */
+#yclh-panel-related {
+  /* overflow: hidden; */
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+/* related 本体をカード化（playlistの #playlist 相当） */
+#yclh-panel-related ytd-watch-next-secondary-results-renderer {
+  border-radius: 14px !important;
+  overflow: hidden !important;
+}
+
+/* items に余白（playlistのitems相当） */
+#yclh-panel-related ytd-watch-next-secondary-results-renderer #items {
+  padding: 8px 16px !important;
+}
+
+/* 各アイテム */
+#yclh-panel-related yt-lockup-view-model.ytd-item-section-renderer {
+  border-radius: 12px !important;
+  padding: 8px 0 !important;
+  margin: 8px 0 !important;
+
+  transform: translateX(0) !important;
+
+  background: rgba(255, 255, 255, 0.04) !important;
+  border: 1px solid rgba(255, 255, 255, 0.08) !important;
+
+  transition:
+    transform 120ms ease,
+    background 120ms ease,
+    border-color 120ms ease !important;
+}
+
+/* ---------------------
+ * playlist
+ * ------------------- */
+/* プレイリストの外枠の線を消す */
+#container.ytd-playlist-panel-renderer {
+  border: none !important;
+}
+
+/* プレイリスト全体をカード化 */
+#yclh-panel-playlist ytd-playlist-panel-renderer#playlist {
+  border-radius: 14px !important;
+  overflow: hidden !important;
+}
+
+/* ヘッダー下部ボーダー */
+#container > div.header.style-scope.ytd-playlist-panel-renderer {
+  border-bottom: 3px solid #ff2a2a;
+}
+
+/* プレイリスト全体余白（左右だけ厚く） */
+#yclh-panel-playlist ytd-playlist-panel-renderer#playlist #items {
+  padding: 8px var(--yclh-gutter) 8px var(--yclh-gutter) !important;
+}
+
+/* 各アイテム（通常状態） */
+#yclh-panel-playlist ytd-playlist-panel-video-renderer {
+  border-radius: 12px !important;
+  padding: 8px 0 !important;
+  margin: 8px 0 !important;
+
+  transform: translateX(0) !important;
+
+  background: rgba(255, 255, 255, 0.04) !important;
+  border: 1px solid rgba(255, 255, 255, 0.08) !important;
+
+  transition:
+    transform 120ms ease,
+    background 120ms ease,
+    border-color 120ms ease !important;
+}
+
+/* 各アイテム（hover状態）※再生中以外のみ */
+#yclh-panel-playlist
+  ytd-playlist-panel-video-renderer:hover:not([aria-selected="true"]):not(
+    [selected]
+  ) {
+  transform: translateX(-8px) !important;
+}
+
+/* 再生中アイテム */
+#yclh-panel-playlist ytd-playlist-panel-video-renderer[aria-selected="true"],
+#yclh-panel-playlist ytd-playlist-panel-video-renderer[selected] {
+  transform: translateX(-8px) !important;
+
+  border-color: rgba(255, 42, 42, 0.55) !important;
+  background: rgba(255, 42, 42, 0.12) !important;
 }
 
 /* ------------------------------------------------------------
@@ -111,4 +252,38 @@ html[data-yclh="1"][data-yclh-left="1"] ytd-watch-flexy #columns > #primary {
 html[data-yclh="1"][data-yclh-left="1"] ytd-watch-flexy #columns > #secondary {
   order: 1;
   padding: 12px 0 0 16px !important;
+}
+
+/* ------------------------------------------------------------
+  アンビエント（光漏れ）っぽい背景を無効化
+  - JS側: html[data-yt-comment-ext-ambient-off="1"]
+  - 副作用低減のため “enabled時だけ” 発動させる
+---------------------------------------------------------- */
+html[data-yt-comment-ext-enabled="1"][data-yt-comment-ext-ambient-off="1"]
+  .ytp-ambient,
+html[data-yt-comment-ext-enabled="1"][data-yt-comment-ext-ambient-off="1"]
+  .ytp-ambient__container,
+html[data-yt-comment-ext-enabled="1"][data-yt-comment-ext-ambient-off="1"]
+  .ytp-ambient__backdrop,
+html[data-yt-comment-ext-enabled="1"][data-yt-comment-ext-ambient-off="1"]
+  #ambient,
+html[data-yt-comment-ext-enabled="1"][data-yt-comment-ext-ambient-off="1"]
+  .ytp-gradient-bottom,
+html[data-yt-comment-ext-enabled="1"][data-yt-comment-ext-ambient-off="1"]
+  .ytp-gradient-top,
+html[data-yt-comment-ext-enabled="1"][data-yt-comment-ext-ambient-off="1"]
+  #cinematics,
+html[data-yt-comment-ext-enabled="1"][data-yt-comment-ext-ambient-off="1"]
+  .ytp-cinematics,
+html[data-yt-comment-ext-enabled="1"][data-yt-comment-ext-ambient-off="1"]
+  .ytp-cinematic-container,
+html[data-yt-comment-ext-enabled="1"][data-yt-comment-ext-ambient-off="1"]
+  ytd-watch-flexy
+  #cinematic-container,
+html[data-yt-comment-ext-enabled="1"][data-yt-comment-ext-ambient-off="1"]
+  ytd-watch-flexy
+  [class*="cinematic"] {
+  display: none !important;
+  opacity: 0 !important;
+  filter: none !important;
 }
