@@ -1,0 +1,124 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <link rel="stylesheet" href="./popup.css" />
+  </head>
+  <body>
+    <div class="app">
+      <header class="header">
+        <div class="title">YCLH</div>
+        <div class="subtitle">YouTube Comment Layout Helper</div>
+      </header>
+
+      <!-- ★ Info banner (YouTube以外など “操作はできる” 状態用) -->
+      <div id="infoBanner" class="infoBanner" hidden>
+        <div class="infoBanner__warn" aria-hidden="true">⚠️</div>
+        <div class="infoBanner__text" id="infoBannerText"></div>
+      </div>
+
+      <!-- Main -->
+      <main class="main">
+        <!-- Enable (top) -->
+        <section class="card">
+          <div class="row">
+            <div class="row-text">
+              <div class="row-title">YCLHを有効化する</div>
+              <div class="row-desc">コメント欄レイアウトを拡張します</div>
+            </div>
+
+            <label class="toggle">
+              <input id="enabled" type="checkbox" />
+              <span class="track" aria-hidden="true"></span>
+            </label>
+          </div>
+
+          <!-- Grouped (indented) -->
+          <!-- <div class="group">
+            <div class="row row--sub">
+              <div class="row-text">
+                <div class="row-title">グループサンプル</div>
+                <div class="row-desc">テキスト</div>
+              </div>
+
+              <label class="toggle">
+                <input id="hoge" type="checkbox" />
+                <span class="track" aria-hidden="true"></span>
+              </label>
+            </div>
+          </div> -->
+        </section>
+
+        <!-- Options -->
+        <section class="card">
+          <div class="section-head">
+            <div class="section-title">OPTIONS</div>
+          </div>
+
+          <div class="row">
+            <div class="row-text">
+              <div class="row-title">サイドパネルを左に配置</div>
+              <div class="row-desc">レイアウトの左右を切り替えます</div>
+            </div>
+
+            <label class="toggle">
+              <input id="moveLeft" type="checkbox" />
+              <span class="track" aria-hidden="true"></span>
+            </label>
+          </div>
+        </section>
+      </main>
+
+      <!-- Footer -->
+      <footer class="footer">
+        <div class="footer-card">
+          <button id="reset" class="btn btn--ghost" type="button">
+            設定をリセット
+          </button>
+
+          <div class="support">
+            <div class="support-head">
+              <div class="support-title">コーヒーをおごる</div>
+              <div class="support-desc">開発の継続の励みになります</div>
+            </div>
+
+            <div class="support-actions">
+              <a
+                class="chip chip--accent"
+                href="https://buymeacoffee.com/jev.devx"
+                target="_blank"
+                rel="noopener noreferrer"
+              >
+                Buy Me a Coffee
+              </a>
+
+              <!-- ↓一旦リリースした後に様子を見て解放 -->
+              <!-- <a
+                class="chip"
+                href="https://"
+                target="_blank"
+                rel="noopener noreferrer"
+              >
+                Strip
+              </a> -->
+            </div>
+          </div>
+        </div>
+      </footer>
+    </div>
+
+    <!-- Overlay (suspended のときだけ出す) -->
+    <div id="statusOverlay" class="statusOverlay" hidden>
+      <div class="statusOverlay__card" role="status" aria-live="polite">
+        <div class="statusOverlay__title">YCLH は一時停止中</div>
+        <div id="statusText" class="statusOverlay__text"></div>
+        <div id="statusHint" class="statusOverlay__hint" hidden>
+          シアターモード解除 / ウィンドウ幅を広げると再開します
+        </div>
+      </div>
+    </div>
+
+    <script type="module" src="../dist/popup.js"></script>
+  </body>
+</html>

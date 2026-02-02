@@ -1,0 +1,576 @@
+:root {
+  /* Chrome拡張のpopupは基本ダーク固定でOK */
+  color-scheme: dark;
+
+  /* ===== Base surfaces (YouTube dark-ish) ===== */
+  --bg: #0f0f0f; /* YouTube dark base */
+  --gray: #ffffff; /* 派生計算の基準（白＝明度基準） */
+
+  /* Card / text */
+  --card: color-mix(in srgb, var(--gray) 8%, transparent);
+  --card2: color-mix(in srgb, var(--gray) 6%, transparent);
+  --text: rgba(255, 255, 255, 0.92);
+  --muted: rgba(255, 255, 255, 0.62);
+  --muted2: rgba(255, 255, 255, 0.45);
+  --border: color-mix(in srgb, var(--gray) 12%, transparent);
+
+  /* ===== Accent (YouTube red) =====
+    YouTubeの赤は #FF0000 もよく使われるけど、
+    UIとしては少し沈んだ赤の方がダークで映えやすいので基準はこれに寄せる */
+  --accent: #e62117;
+
+  /* Accent derivatives（足し算引き算で一元管理） */
+  --accent-soft: color-mix(in srgb, var(--accent) 16%, transparent);
+  --accent-soft2: color-mix(in srgb, var(--accent) 26%, transparent);
+  --accent-border: color-mix(in srgb, var(--accent) 48%, transparent);
+  --accent-ring: color-mix(in srgb, var(--accent) 72%, transparent);
+
+  /* Toggle colors */
+  --toggle-track-off: color-mix(in srgb, var(--gray) 16%, transparent);
+  --toggle-track-off-border: color-mix(in srgb, var(--gray) 14%, transparent);
+  --toggle-track-on: var(--accent);
+  --toggle-track-on-2: color-mix(in srgb, var(--accent) 82%, #ff6a60);
+  --toggle-knob: rgba(255, 255, 255, 0.92);
+
+  /* Buttons (ghost/link) */
+  --btn-ghost-bg: color-mix(in srgb, var(--gray) 8%, transparent);
+  --btn-ghost-bg-hover: color-mix(in srgb, var(--gray) 11%, transparent);
+  --btn-ghost-border: color-mix(in srgb, var(--gray) 12%, transparent);
+  --btn-ghost-border-hover: color-mix(in srgb, var(--gray) 18%, transparent);
+
+  --btn-link-fg: color-mix(in srgb, var(--gray) 82%, transparent);
+  --btn-link-fg-hover: color-mix(in srgb, var(--gray) 94%, transparent);
+  --btn-link-bg-hover: color-mix(in srgb, var(--gray) 6%, transparent);
+  --btn-link-border: color-mix(in srgb, var(--gray) 10%, transparent);
+
+  /* Shapes/shadow */
+  --radius: 16px;
+  --radius2: 12px;
+  --shadow: 0 12px 40px rgba(0, 0, 0, 0.55);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  font:
+    13px/1.5 ui-sans-serif,
+    system-ui,
+    -apple-system,
+    "Segoe UI",
+    Roboto,
+    "Noto Sans JP",
+    "Hiragino Sans",
+    "Hiragino Kaku Gothic ProN",
+    Meiryo,
+    sans-serif;
+  min-width: 320px;
+  color: var(--text);
+
+  /* ===== Background: red accent from top-right to bottom-left ===== */
+  background: linear-gradient(
+    to bottom left,
+    color-mix(in srgb, var(--accent) 22%, var(--bg)),
+    var(--bg) 70%,
+    #000
+  );
+}
+
+a,
+a:active {
+  color: var(--text);
+}
+a {
+  text-decoration: none;
+}
+a:focus {
+  outline: none;
+}
+
+.app {
+  padding: 14px;
+}
+
+/* =========================
+  Header
+========================= */
+
+.header {
+  margin-bottom: 12px;
+  padding: 14px 12px 12px;
+
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+
+  background: linear-gradient(
+    180deg,
+    color-mix(in srgb, var(--gray) 10%, transparent),
+    color-mix(in srgb, var(--gray) 6%, transparent)
+  );
+
+  /* ★ 追加 */
+  text-align: center;
+}
+
+/* メインタイトル */
+.title {
+  font-size: 18px;
+  font-weight: 800;
+  letter-spacing: 0.6px;
+  line-height: 1.2;
+}
+
+/* サブタイトル */
+.subtitle {
+  margin-top: 4px;
+  font-size: 11px;
+  color: var(--muted);
+  letter-spacing: 0.4px;
+}
+
+/* =========================
+  Main
+========================= */
+.main {
+  display: grid;
+  gap: 10px;
+}
+
+.card {
+  border: 1px solid var(--border);
+
+  background: linear-gradient(
+    180deg,
+    color-mix(in srgb, var(--gray) 10%, transparent),
+    color-mix(in srgb, var(--gray) 6%, transparent)
+  );
+
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  overflow: hidden;
+}
+
+.section-head {
+  padding: 10px 12px 6px;
+  border-bottom: 1px solid color-mix(in srgb, var(--gray) 8%, transparent);
+}
+
+.section-title {
+  font-size: 10px;
+  letter-spacing: 1.2px;
+  color: var(--muted2);
+}
+
+.row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px;
+}
+
+.row + .row {
+  border-top: 1px solid color-mix(in srgb, var(--gray) 8%, transparent);
+}
+
+.row-text {
+  min-width: 0;
+}
+
+.row-title {
+  font-weight: 650;
+  font-size: 13px;
+}
+
+.row-desc {
+  margin-top: 2px;
+  font-size: 11px;
+  color: var(--muted);
+}
+
+.group {
+  margin: 0 12px 12px;
+  border: 1px solid color-mix(in srgb, var(--gray) 10%, transparent);
+  background: color-mix(in srgb, #000 18%, transparent);
+  border-radius: var(--radius2);
+  overflow: hidden;
+}
+
+.row--sub {
+  padding: 10px 10px;
+}
+
+.row--sub .row-title {
+  font-weight: 600;
+  font-size: 12.5px;
+}
+
+.row--sub .row-desc {
+  font-size: 10.5px;
+}
+
+/* Toggle */
+.toggle {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 26px;
+  flex: 0 0 auto;
+}
+
+.toggle input {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  margin: 0;
+  cursor: pointer;
+}
+
+.toggle .track {
+  width: 44px;
+  height: 26px;
+  border-radius: 999px;
+
+  background: var(--toggle-track-off);
+  border: 1px solid var(--toggle-track-off-border);
+
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, #000 12%, transparent);
+  position: relative;
+  transition: 140ms ease;
+}
+
+.toggle .track::after {
+  content: "";
+  position: absolute;
+  top: 50%;
+  left: 3px;
+  width: 20px;
+  height: 20px;
+  border-radius: 999px;
+  transform: translateY(-50%);
+  background: var(--toggle-knob);
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.35);
+  transition: 140ms ease;
+}
+
+.toggle input:focus-visible + .track {
+  outline: 2px solid var(--accent-ring);
+  outline-offset: 2px;
+}
+
+.toggle input:checked + .track {
+  background: linear-gradient(
+    90deg,
+    var(--toggle-track-on),
+    var(--toggle-track-on-2)
+  );
+  border-color: var(--accent-border);
+}
+
+.toggle input:checked + .track::after {
+  transform: translateY(-50%) translateX(18px);
+}
+
+.toggle input:disabled + .track {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.btn {
+  appearance: none;
+  border: 1px solid transparent;
+  border-radius: 999px;
+  padding: 10px 12px;
+  font: inherit;
+  cursor: pointer;
+  user-select: none;
+  transition: 140ms ease;
+}
+
+.btn--ghost {
+  flex: 1 1 auto;
+  text-align: center;
+  color: var(--text);
+  background: var(--btn-ghost-bg);
+  border-color: var(--btn-ghost-border);
+}
+
+.btn--ghost:hover {
+  background: var(--btn-ghost-bg-hover);
+  border-color: var(--btn-ghost-border-hover);
+}
+
+.btn--ghost:active {
+  transform: translateY(1px);
+}
+
+.btn--link {
+  width: 40px;
+  height: 40px;
+  padding: 0;
+  display: inline-grid;
+  place-items: center;
+  text-decoration: none;
+  color: var(--btn-link-fg);
+  background: transparent;
+  border-color: var(--btn-link-border);
+}
+
+.btn--link:hover {
+  color: var(--btn-link-fg-hover);
+  background: var(--btn-link-bg-hover);
+}
+
+.btn--link:active {
+  transform: translateY(1px);
+}
+
+/* =========================
+  Footer
+========================= */
+.footer {
+  margin-top: 10px;
+}
+
+/* footer 全体を “サブカード” にまとめる */
+.footer-card {
+  display: grid;
+  gap: 10px;
+
+  padding: 12px;
+  border-radius: var(--radius);
+  border: 1px solid var(--border);
+
+  background: linear-gradient(
+    180deg,
+    color-mix(in srgb, var(--gray) 9%, transparent),
+    color-mix(in srgb, var(--gray) 6%, transparent)
+  );
+
+  box-shadow: var(--shadow);
+}
+
+/* reset ボタンは横幅いっぱい */
+.footer-card .btn--ghost {
+  width: 100%;
+}
+
+/* Support block */
+.support {
+  padding-top: 10px;
+  border-top: 1px solid color-mix(in srgb, var(--gray) 10%, transparent);
+}
+
+.support-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 10px;
+}
+
+.support-title {
+  font-weight: 700;
+  font-size: 12.5px;
+}
+
+.support-desc {
+  font-size: 10.5px;
+  color: var(--muted2);
+  white-space: nowrap;
+}
+
+/* actions を横並び＆均等幅に */
+.support-actions {
+  display: grid;
+  /* grid-template-columns: 1fr 1fr;  ← Stripを追加したらこれも解除する*/
+  gap: 8px;
+}
+
+/* a を “ボタン（chip）” に見せる */
+.chip {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+
+  height: 38px;
+  padding: 0 12px;
+  border-radius: 999px;
+
+  color: var(--text);
+  background: color-mix(in srgb, var(--gray) 8%, transparent);
+  border: 1px solid color-mix(in srgb, var(--gray) 14%, transparent);
+
+  text-decoration: none;
+  user-select: none;
+
+  transition: 140ms ease;
+}
+
+.chip:hover {
+  background: color-mix(in srgb, var(--gray) 12%, transparent);
+  border-color: color-mix(in srgb, var(--gray) 18%, transparent);
+  transform: translateY(-1px);
+}
+
+.chip:active {
+  transform: translateY(0px);
+}
+
+/* メイン導線だけ赤アクセント */
+.chip--accent {
+  background: color-mix(in srgb, var(--accent) 18%, transparent);
+  border-color: var(--accent-border);
+}
+
+.chip--accent:hover {
+  background: color-mix(in srgb, var(--accent) 26%, transparent);
+  border-color: color-mix(in srgb, var(--accent) 62%, transparent);
+}
+
+/* キーボードフォーカス */
+.chip:focus-visible {
+  outline: 2px solid var(--accent-ring);
+  outline-offset: 2px;
+}
+
+/* =========================
+  Suspended overlay (unified)
+========================= */
+.statusOverlay {
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+
+  /* 透明度を明示して “透け” を作る（これがないと blur が見えない） */
+  background: rgba(0, 0, 0, 0.8);
+
+  /* blur 本体 */
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+
+  /* さらに root の色味に寄せたい場合は “薄いベール” を重ねる */
+  /* （rgba の上に重ねるので blur は維持される） */
+  box-shadow: inset 0 0 0 9999px color-mix(in srgb, var(--bg) 18%, transparent);
+
+  display: grid;
+  place-items: center;
+
+  pointer-events: all;
+}
+
+/* 通常 card と完全に同じ素材感 */
+.statusOverlay__card {
+  width: 100%;
+  max-width: 320px;
+  margin: 0 12px;
+
+  padding: 14px 14px 12px;
+  border-radius: var(--radius);
+  border: 1px solid var(--border);
+
+  background: linear-gradient(180deg, var(--card), var(--card2));
+
+  box-shadow: var(--shadow);
+  text-align: center;
+
+  /* card らしい軽い浮き */
+  transform: translateY(-2px);
+}
+
+/* YouTube red の細いアクセントライン */
+.statusOverlay__card::before {
+  content: "";
+  display: block;
+  height: 3px;
+  margin: 0 2px 10px;
+  border-radius: 999px;
+
+  background: linear-gradient(90deg, var(--accent), var(--accent-soft));
+}
+
+/* タイトル */
+.statusOverlay__title {
+  font-weight: 800;
+  letter-spacing: 0.4px;
+  margin-bottom: 6px;
+  line-height: 1.25;
+}
+
+/* 本文 */
+.statusOverlay__text {
+  font-size: 12px;
+  color: var(--text);
+  line-height: 1.55;
+}
+
+/* 補足（いつもの muted UI） */
+.statusOverlay__hint {
+  margin-top: 10px;
+  font-size: 10.5px;
+  color: var(--muted);
+
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+
+  padding: 7px 10px;
+  border-radius: 999px;
+
+  background: color-mix(in srgb, var(--gray) 6%, transparent);
+  border: 1px solid color-mix(in srgb, var(--gray) 10%, transparent);
+}
+
+/* 非表示 */
+.statusOverlay[hidden] {
+  display: none !important;
+}
+
+/* =========================
+  Info banner
+========================= */
+
+.infoBanner[hidden] {
+  display: none !important;
+}
+
+.infoBanner {
+  margin: 0 0 10px;
+  padding: 10px 12px;
+
+  border-radius: var(--radius2);
+  border: 1px solid var(--border);
+
+  background: linear-gradient(
+    180deg,
+    color-mix(in srgb, var(--gray) 10%, transparent),
+    color-mix(in srgb, var(--gray) 6%, transparent)
+  );
+
+  box-shadow: var(--shadow);
+
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+}
+
+.infoBanner__warn {
+  flex: 0 0 auto;
+  align-self: center;
+}
+
+.infoBanner__text {
+  font-size: 11px;
+  color: var(--muted);
+  line-height: 1.45;
+}

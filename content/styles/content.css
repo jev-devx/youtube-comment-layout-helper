@@ -1,0 +1,4 @@
+/* まだ何もしない。デバッグ用にhtml[data-yclh]だけ反応 */
+html[data-yclh="1"] {
+  border: 1px solid #00f;
+}

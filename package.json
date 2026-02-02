@@ -1,0 +1,14 @@
+{
+  "name": "youtube-comment-layout-helper",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build:content": "vite build --mode content && node content/scripts/copy-content-css.mjs",
+    "build:popup": "vite build --mode popup",
+    "build": "npm run build:content && npm run build:popup"
+  },
+  "devDependencies": {
+    "vite": "^7.3.1"
+  }
+}
