@@ -116,7 +116,6 @@ a:focus {
     color-mix(in srgb, var(--gray) 6%, transparent)
   );
 
-  /* ★ 追加 */
   text-align: center;
 }
 

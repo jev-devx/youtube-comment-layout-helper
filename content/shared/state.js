@@ -36,14 +36,10 @@ const ORIGINAL_TEMPLATE = {
   commentsParent: null,
   commentsNext: null,
 
+  // related = #secondary-inner（丸ごと）
   relatedEl: null,
   relatedParent: null,
   relatedNext: null,
-
-  playlistPanelEl: null,
-  playlistPanelParent: null,
-  playlistPanelNext: null,
-  playlistPanelAnchor: null,
 };
 
 export const original = { ...ORIGINAL_TEMPLATE };
@@ -67,7 +63,7 @@ const RUNTIME_TEMPLATE = {
   // ambientOff は「常時ONの環境制御」扱いでここに置く（永続化しない）
   ambientOff: true,
 
-  // 表示中のpanel（tabs無しで切替の骨を作る）
+  // 表示中のpanel
   activePanel: "comments", // "comments" | "related"
 };
 
