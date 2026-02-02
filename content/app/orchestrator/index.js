@@ -1,4 +1,5 @@
-import { original, resetOriginal } from "../../shared/state.js";
+import { original, resetOriginal, runtimeState } from "../../shared/state.js";
+
 import {
   rememberCommentsOriginal,
   restoreCommentsOriginal,
@@ -6,29 +7,28 @@ import {
   restoreRelatedOriginal,
 } from "../dom/originals.js";
 
-const STASH_ID = "yclh-stash";
+import {
+  canBuildLayoutRoot,
+  ensureLayoutRoot,
+  cleanupLayoutRoot,
+} from "../dom/layoutRoot.js";
 
-const ensureStash = () => {
-  let el = document.getElementById(STASH_ID);
-  if (!el) {
-    el = document.createElement("div");
-    el.id = STASH_ID;
-    el.style.display = "none";
-    document.documentElement.appendChild(el);
-  }
-  return el;
-};
-
-const cleanupStash = () => {
-  const el = document.getElementById(STASH_ID);
-  if (!el) return;
-  if (!el.firstChild) el.remove();
-};
+import {
+  ensureSideTabs,
+  ensureSidePanels,
+  getPanelComments,
+  getPanelRelated,
+  setActivePanel,
+  setActiveTab,
+  cleanupSideUi,
+} from "../dom/sideRoot.js";
 
 export const createOrchestrator = () => {
   let applied = false;
   let bootObserver = null;
   let bootTimer = 0;
+
+  let cssInserted = false;
 
   const stopBootWatch = () => {
     if (bootObserver) {
@@ -41,20 +41,66 @@ export const createOrchestrator = () => {
     }
   };
 
+  const ensureCssInserted = () => {
+    if (cssInserted) return;
+    cssInserted = true;
+    try {
+      chrome.runtime.sendMessage({ type: "YCLH_INSERT_CSS" });
+    } catch {}
+  };
+
+  const ensureCssRemoved = () => {
+    if (!cssInserted) return;
+    cssInserted = false;
+    try {
+      chrome.runtime.sendMessage({ type: "YCLH_REMOVE_CSS" });
+    } catch {}
+  };
+
+  const applyActive = (name) => {
+    runtimeState.activePanel = name;
+    setActivePanel(name);
+    setActiveTab(name);
+  };
+
   const tryApplyOnce = () => {
-    const stash = ensureStash();
+    if (!canBuildLayoutRoot()) return false;
 
+    const roots = ensureLayoutRoot();
+    const side = roots?.side;
+    if (!side) return false;
+
+    // tabs/panels を用意
+    ensureSideTabs(side, {
+      onTabClick: (name) => {
+        if (!applied) return;
+        applyActive(name);
+      },
+    });
+    ensureSidePanels(side);
+
+    const panelComments = getPanelComments();
+    const panelRelated = getPanelRelated();
+    if (!panelComments || !panelRelated) return false;
+
+    // active 初期適用
+    applyActive(runtimeState.activePanel || "comments");
+
+    // 元位置を覚える
     const comments = rememberCommentsOriginal(original);
-    if (comments && comments.parentElement !== stash)
-      stash.appendChild(comments);
-
     const related = rememberRelatedOriginal(original);
-    if (related && related.parentElement !== stash) stash.appendChild(related);
-
-    // どっちも無ければまだ早い
     if (!comments && !related) return false;
 
+    // panelへ移動
+    if (comments && comments.parentElement !== panelComments) {
+      panelComments.appendChild(comments);
+    }
+    if (related && related.parentElement !== panelRelated) {
+      panelRelated.appendChild(related);
+    }
+
     document.documentElement.dataset.yclh = "1";
+    ensureCssInserted();
     return true;
   };
 
@@ -62,7 +108,6 @@ export const createOrchestrator = () => {
     if (applied) return;
     applied = true;
 
-    // comments がまだ無いことが多いので、短命の監視で拾う
     if (tryApplyOnce()) return;
 
     stopBootWatch();
@@ -77,7 +122,6 @@ export const createOrchestrator = () => {
       subtree: true,
     });
 
-    // 永久監視にしない（沼防止）
     bootTimer = setTimeout(() => stopBootWatch(), 4000);
   };
 
@@ -87,15 +131,15 @@ export const createOrchestrator = () => {
 
     stopBootWatch();
 
-    // まず元位置に戻す（戻せたらOK）
     restoreCommentsOriginal(original);
     restoreRelatedOriginal(original);
 
-    // 退避先掃除
-    cleanupStash();
-
-    // 状態初期化
     delete document.documentElement.dataset.yclh;
+
+    cleanupSideUi();
+    cleanupLayoutRoot();
+
+    ensureCssRemoved();
     resetOriginal();
   };
 

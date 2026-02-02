@@ -66,6 +66,9 @@ const RUNTIME_TEMPLATE = {
 
   // ambientOff は「常時ONの環境制御」扱いでここに置く（永続化しない）
   ambientOff: true,
+
+  // 表示中のpanel（tabs無しで切替の骨を作る）
+  activePanel: "comments", // "comments" | "related"
 };
 
 export const runtimeState = { ...RUNTIME_TEMPLATE };

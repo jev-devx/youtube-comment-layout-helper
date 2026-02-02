@@ -2,3 +2,76 @@
 html[data-yclh="1"] {
   border: 1px solid #00f;
 }
+
+/* YCLHが触るのはこの範囲だけ */
+#yclh-layout-root {
+  border: 2px solid #ff0;
+}
+
+#yclh-side {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+
+  border: 3px solid #f00;
+}
+
+#yclh-panels {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+
+  border: 1px solid #0f0;
+}
+
+/* panelは今は見た目いじらない（将来タブで切替） */
+#yclh-panel-comments,
+#yclh-panel-related {
+  display: block;
+
+  border: 2px solid #f0f;
+}
+
+/* active panel だけ表示（tabsはまだ無い） */
+#yclh-panels[data-active="comments"] #yclh-panel-related {
+  display: none;
+}
+#yclh-panels[data-active="related"] #yclh-panel-comments {
+  display: none;
+}
+
+/*  */
+/* tabs */
+#yclh-tabs {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+#yclh-tabs button[data-tab] {
+  cursor: pointer;
+  padding: 6px 10px;
+}
+
+#yclh-tabs button[data-active="1"] {
+  font-weight: 700;
+  text-decoration: underline;
+}
+
+/* panels */
+#yclh-panels {
+  position: relative;
+}
+
+/* 方針A：非activeは DOMから消さず「画面外へ退避」して隠す */
+#yclh-panels[data-active="comments"] #yclh-panel-related,
+#yclh-panels[data-active="related"] #yclh-panel-comments {
+  position: absolute;
+  left: -100000px;
+  top: 0;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  pointer-events: none;
+  visibility: hidden;
+}
