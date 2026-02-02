@@ -2,14 +2,14 @@
  * debug flag
  * ---------------------------------------------------------- */
 html[data-yclh="1"] {
-  border: 1px solid #00f;
+  /* outline: 1px solid #00f; */
 }
 
 /* ------------------------------------------------------------
  * layoutRoot = viewport内に収まる「箱」
  * ---------------------------------------------------------- */
 html[data-yclh="1"] #yclh-layout-root {
-  border: 2px solid #ff0;
+  /* outline: 2px solid #ff0; */
 
   /* 箱の高さ：sizing が入れた値 */
   height: var(--yclh-layout-h, 70vh);
@@ -20,7 +20,7 @@ html[data-yclh="1"] #yclh-layout-root {
 }
 
 html[data-yclh="1"] #yclh-side {
-  border: 3px solid #f00;
+  /* outline: 3px solid #f00; */
 
   display: flex;
   flex-direction: column;
@@ -57,7 +57,7 @@ html[data-yclh="1"] #secondary-inner {
  * panels
  * ---------------------------------------------------------- */
 #yclh-panels {
-  border: 1px solid #0f0;
+  /* outline: 1px solid #0f0; */
 
   position: relative;
   overflow: hidden; /* panelの畳み込みで外に出さない */
@@ -67,7 +67,7 @@ html[data-yclh="1"] #secondary-inner {
 #yclh-panel-comments,
 #yclh-panel-related,
 #yclh-panel-playlist {
-  border: 2px solid #f0f;
+  /* outline: 2px solid #f0f; */
 
   overflow: auto;
   max-height: var(--yclh-panels-h, 70vh);
@@ -94,4 +94,21 @@ html[data-yclh="1"] #secondary-inner {
 
   visibility: hidden !important;
   pointer-events: none !important;
+}
+
+/* ------------------------------------------------------------
+ * moveLeft
+ * ---------------------------------------------------------- */
+/* #primary/#secondary の順番だけ入れ替える */
+html[data-yclh="1"][data-yclh-left="1"] ytd-watch-flexy #columns {
+  display: flex !important; /* 念のため */
+}
+
+html[data-yclh="1"][data-yclh-left="1"] ytd-watch-flexy #columns > #primary {
+  order: 2;
+}
+
+html[data-yclh="1"][data-yclh-left="1"] ytd-watch-flexy #columns > #secondary {
+  order: 1;
+  padding: 12px 0 0 16px !important;
 }

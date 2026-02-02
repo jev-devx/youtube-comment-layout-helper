@@ -1,4 +1,9 @@
-import { original, resetOriginal, runtimeState } from "../../shared/state.js";
+import {
+  settings,
+  original,
+  resetOriginal,
+  runtimeState,
+} from "../../shared/state.js";
 
 import {
   rememberCommentsOriginal,
@@ -109,6 +114,22 @@ export const createOrchestrator = () => {
     setActiveTab(name);
   };
 
+  const applyMoveLeftFlags = () => {
+    document.documentElement.dataset.yclh = "1";
+
+    if (settings.moveLeft) {
+      document.documentElement.dataset.yclhLeft = "1";
+    } else {
+      delete document.documentElement.dataset.yclhLeft;
+    }
+  };
+
+  const syncMoveLeft = () => {
+    // 有効中だけ即反映（無効中は何もしない）
+    if (!applied) return;
+    applyMoveLeftFlags();
+  };
+
   const tryApplyOnce = () => {
     // layoutの器が作れるか
     if (!canBuildLayoutRoot()) return false;
@@ -155,6 +176,7 @@ export const createOrchestrator = () => {
 
     // 有効フラグ & CSS
     document.documentElement.dataset.yclh = "1";
+
     ensureCssInserted();
 
     // sizing開始
@@ -212,6 +234,7 @@ export const createOrchestrator = () => {
     // CSS/フラグ掃除
     ensureCssRemoved();
     delete document.documentElement.dataset.yclh;
+    delete document.documentElement.dataset.yclhLeft;
 
     // state掃除
     resetOriginal();
@@ -219,5 +242,5 @@ export const createOrchestrator = () => {
     stopPlaylistWatch();
   };
 
-  return { apply, restore };
+  return { apply, restore, syncMoveLeft };
 };

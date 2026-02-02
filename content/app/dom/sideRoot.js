@@ -129,7 +129,8 @@ export const cleanupSideUi = () => {
     // panelに何か入ってたら消さない
     const c = getPanelComments();
     const r = getPanelRelated();
-    if (!c?.firstChild && !r?.firstChild) panels.remove();
+    const p = getPanelPlaylist();
+    if (!c?.firstChild && !r?.firstChild && !p?.firstChild) panels.remove();
   }
 
   const tabs = getTabsRoot();
