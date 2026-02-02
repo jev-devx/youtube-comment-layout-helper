@@ -5,6 +5,8 @@ import {
   restoreCommentsOriginal,
   rememberRelatedOriginal,
   restoreRelatedOriginal,
+  rememberPlaylistOriginal,
+  restorePlaylistOriginal,
 } from "../dom/originals.js";
 
 import {
@@ -18,6 +20,7 @@ import {
   ensureSidePanels,
   getPanelComments,
   getPanelRelated,
+  getPanelPlaylist,
   setActivePanel,
   setActiveTab,
   cleanupSideUi,
@@ -60,6 +63,46 @@ export const createOrchestrator = () => {
     } catch {}
   };
 
+  const dockPlaylistIfExists = () => {
+    const panelPlaylist = getPanelPlaylist();
+    if (!panelPlaylist) return false;
+
+    const playlist = rememberPlaylistOriginal(original);
+    if (!playlist) return false;
+
+    if (playlist.parentElement !== panelPlaylist) {
+      panelPlaylist.appendChild(playlist);
+    }
+    return true;
+  };
+
+  let playlistObserver = null;
+  const startPlaylistWatch = () => {
+    if (playlistObserver) return;
+
+    playlistObserver = new MutationObserver(() => {
+      if (!applied) return;
+      if (dockPlaylistIfExists()) {
+        playlistObserver.disconnect();
+        playlistObserver = null;
+      }
+    });
+
+    // #playlist 周辺だけ見れば十分（無ければ document でもOK）
+    const root =
+      document.querySelector("#playlist") ||
+      document.querySelector("#secondary") ||
+      document.documentElement;
+
+    playlistObserver.observe(root, { childList: true, subtree: true });
+  };
+
+  const stopPlaylistWatch = () => {
+    if (!playlistObserver) return;
+    playlistObserver.disconnect();
+    playlistObserver = null;
+  };
+
   const applyActive = (name) => {
     runtimeState.activePanel = name;
     setActivePanel(name);
@@ -85,16 +128,16 @@ export const createOrchestrator = () => {
 
     const panelComments = getPanelComments();
     const panelRelated = getPanelRelated();
-    if (!panelComments || !panelRelated) return false;
+    const panelPlaylist = getPanelPlaylist();
+    if (!panelComments || !panelRelated || !panelPlaylist) return false;
 
     // 元位置を覚える
     const comments = rememberCommentsOriginal(original);
-
-    //related は「secondary-inner」丸ごと
     const related = rememberRelatedOriginal(original);
+    const playlist = rememberPlaylistOriginal(original);
 
-    // どっちも無ければまだ早い
-    if (!comments && !related) return false;
+    // 何も無ければまだ早い
+    if (!comments && !related && !playlist) return false;
 
     // panelへ移動（存在するものだけ）
     if (comments && comments.parentElement !== panelComments) {
@@ -102,6 +145,9 @@ export const createOrchestrator = () => {
     }
     if (related && related.parentElement !== panelRelated) {
       panelRelated.appendChild(related);
+    }
+    if (playlist && playlist.parentElement !== panelPlaylist) {
+      panelPlaylist.appendChild(playlist);
     }
 
     // active 初期適用（DOMが揃ってから）
@@ -114,12 +160,17 @@ export const createOrchestrator = () => {
     // sizing開始
     sizing.start();
 
+    // playlist は遅れて出ることがあるので一回試す
+    dockPlaylistIfExists();
+
     return true;
   };
 
   const apply = () => {
     if (applied) return;
     applied = true;
+
+    startPlaylistWatch();
 
     if (tryApplyOnce()) return;
 
@@ -152,6 +203,7 @@ export const createOrchestrator = () => {
     // 元位置へ
     restoreCommentsOriginal(original);
     restoreRelatedOriginal(original);
+    restorePlaylistOriginal(original);
 
     // UI掃除
     cleanupSideUi();
@@ -163,6 +215,8 @@ export const createOrchestrator = () => {
 
     // state掃除
     resetOriginal();
+
+    stopPlaylistWatch();
   };
 
   return { apply, restore };

@@ -27,7 +27,7 @@ export const restoreCommentsOriginal = (original) => {
 
 /**
  * related
- * ★ related = #secondary-inner を丸ごと扱う
+ * - #related を覚える / 戻す
  */
 export const rememberRelatedOriginal = (original) => {
   const related = document.querySelector("#related");
@@ -48,4 +48,35 @@ export const restoreRelatedOriginal = (original) => {
   if (!el || !parent) return false;
 
   return safeRestoreInsert(el, parent, original.relatedNext);
+};
+
+/**
+ * playlist
+ * - ytd-playlist-panel-renderer#playlist を覚える / 戻す
+ */
+export const rememberPlaylistOriginal = (original) => {
+  const root = document.querySelector("ytd-playlist-panel-renderer#playlist");
+  if (!root) return null;
+
+  // まず container を狙う（無ければ items）
+  const container =
+    root.querySelector("#container") || root.querySelector("#items") || null;
+
+  if (!container) return null;
+
+  if (!original.playlistEl) {
+    original.playlistEl = container;
+    original.playlistParent = container.parentElement;
+    original.playlistNext = container.nextSibling;
+  }
+
+  return container;
+};
+
+export const restorePlaylistOriginal = (original) => {
+  const el = original.playlistEl;
+  const parent = original.playlistParent;
+  if (!el || !parent) return false;
+
+  return safeRestoreInsert(el, parent, original.playlistNext);
 };

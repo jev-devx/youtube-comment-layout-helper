@@ -5,6 +5,7 @@ export const IDS = {
   panels: "yclh-panels",
   panelComments: "yclh-panel-comments",
   panelRelated: "yclh-panel-related",
+  panelPlaylist: "yclh-panel-playlist",
 };
 
 const $id = (id) => document.getElementById(id);
@@ -13,6 +14,7 @@ export const getTabsRoot = () => $id(IDS.tabs);
 export const getPanelsRoot = () => $id(IDS.panels);
 export const getPanelComments = () => $id(IDS.panelComments);
 export const getPanelRelated = () => $id(IDS.panelRelated);
+export const getPanelPlaylist = () => $id(IDS.panelPlaylist);
 
 /**
  * tabs（comments / related）を作る
@@ -37,6 +39,7 @@ export const ensureSideTabs = (sideRoot, { onTabClick } = {}) => {
 
     tabs.appendChild(mkBtn("comments", "Comments"));
     tabs.appendChild(mkBtn("related", "Related"));
+    tabs.appendChild(mkBtn("playlist", "Playlist"));
 
     // side の先頭へ（tabsが上、panelsが下）
     safeInsertBefore(sideRoot, tabs, sideRoot.firstChild);
@@ -79,8 +82,12 @@ export const ensureSidePanels = (sideRoot) => {
     const panelRelated = document.createElement("div");
     panelRelated.id = IDS.panelRelated;
 
+    const panelPlaylist = document.createElement("div");
+    panelPlaylist.id = IDS.panelPlaylist;
+
     panels.appendChild(panelComments);
     panels.appendChild(panelRelated);
+    panels.appendChild(panelPlaylist);
 
     // tabs が居ればその後ろ、無ければ side の先頭に置く
     const tabs = getTabsRoot();

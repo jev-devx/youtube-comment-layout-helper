@@ -36,10 +36,13 @@ const ORIGINAL_TEMPLATE = {
   commentsParent: null,
   commentsNext: null,
 
-  // related = #secondary-inner（丸ごと）
   relatedEl: null,
   relatedParent: null,
   relatedNext: null,
+
+  playlistEl: null,
+  playlistParent: null,
+  playlistNext: null,
 };
 
 export const original = { ...ORIGINAL_TEMPLATE };
@@ -64,7 +67,7 @@ const RUNTIME_TEMPLATE = {
   ambientOff: true,
 
   // 表示中のpanel
-  activePanel: "comments", // "comments" | "related"
+  activePanel: "comments", // "comments" | "related" | "playlist"
 };
 
 export const runtimeState = { ...RUNTIME_TEMPLATE };

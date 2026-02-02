@@ -31,6 +31,10 @@ html[data-yclh="1"] #yclh-side {
   overflow: hidden;
 }
 
+html[data-yclh="1"] #secondary-inner {
+  display: none !important;
+}
+
 /* ------------------------------------------------------------
  * tabs
  * ---------------------------------------------------------- */
@@ -61,7 +65,8 @@ html[data-yclh="1"] #yclh-side {
 
 /* panel本体：ここが独立スクロール領域 */
 #yclh-panel-comments,
-#yclh-panel-related {
+#yclh-panel-related,
+#yclh-panel-playlist {
   border: 2px solid #f0f;
 
   overflow: auto;
@@ -74,7 +79,11 @@ html[data-yclh="1"] #yclh-side {
  * active / inactive panel 切替（DOMは残して畳む）
  * ---------------------------------------------------------- */
 #yclh-panels[data-active="comments"] #yclh-panel-related,
-#yclh-panels[data-active="related"] #yclh-panel-comments {
+#yclh-panels[data-active="comments"] #yclh-panel-playlist,
+#yclh-panels[data-active="related"] #yclh-panel-comments,
+#yclh-panels[data-active="related"] #yclh-panel-playlist,
+#yclh-panels[data-active="playlist"] #yclh-panel-comments,
+#yclh-panels[data-active="playlist"] #yclh-panel-related {
   max-height: 0 !important;
   height: 0 !important;
   overflow: hidden !important;
