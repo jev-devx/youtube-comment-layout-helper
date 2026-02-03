@@ -12,6 +12,8 @@ import {
   restoreRelatedOriginal,
   rememberPlaylistOriginal,
   restorePlaylistOriginal,
+  rememberChatOriginal,
+  restoreChatOriginal,
 } from "../dom/originals.js";
 
 import {
@@ -26,6 +28,7 @@ import {
   getPanelComments,
   getPanelRelated,
   getPanelPlaylist,
+  getPanelChat,
   setActivePanel,
   setActiveTab,
   cleanupSideUi,
@@ -68,6 +71,7 @@ export const createOrchestrator = () => {
     } catch {}
   };
 
+  // playlist監視　ここから
   const dockPlaylistIfExists = () => {
     const panelPlaylist = getPanelPlaylist();
     if (!panelPlaylist) return false;
@@ -107,6 +111,60 @@ export const createOrchestrator = () => {
     playlistObserver.disconnect();
     playlistObserver = null;
   };
+  // ここまで
+
+  // chat監視　ここから
+  const dockChatIfExists = () => {
+    const panelChat = getPanelChat();
+    if (!panelChat) return false;
+
+    const chat = rememberChatOriginal(original);
+    if (!chat) return false;
+
+    // すでに正しい場所なら何もしない
+    if (chat.parentElement === panelChat) return true;
+
+    panelChat.appendChild(chat);
+    return true;
+  };
+
+  let chatObserver = null;
+  let lastChatEnsureAt = 0;
+  const startChatWatch = () => {
+    if (chatObserver) return;
+
+    const ensure = () => {
+      if (!applied) return;
+
+      // 連打・大量mutation対策（200msに1回だけ）
+      const now = performance.now();
+      if (now - lastChatEnsureAt < 200) return;
+      lastChatEnsureAt = now;
+
+      dockChatIfExists();
+    };
+
+    chatObserver = new MutationObserver(ensure);
+
+    // YouTube は chat を #secondary / #panels 周りで入れ替えるので広めに監視
+    const root =
+      document.querySelector("#secondary") ||
+      document.querySelector("ytd-watch-flexy") ||
+      document.documentElement;
+
+    chatObserver.observe(root, { childList: true, subtree: true });
+
+    // 起動直後も一回だけ保証
+    ensure();
+  };
+
+  const stopChatWatch = () => {
+    if (!chatObserver) return;
+    chatObserver.disconnect();
+    chatObserver = null;
+  };
+
+  // ここまで
 
   const applyActive = (name) => {
     runtimeState.activePanel = name;
@@ -150,15 +208,18 @@ export const createOrchestrator = () => {
     const panelComments = getPanelComments();
     const panelRelated = getPanelRelated();
     const panelPlaylist = getPanelPlaylist();
-    if (!panelComments || !panelRelated || !panelPlaylist) return false;
+    const panelChat = getPanelChat();
+    if (!panelComments || !panelRelated || !panelPlaylist || !panelChat)
+      return false;
 
     // 元位置を覚える
     const comments = rememberCommentsOriginal(original);
     const related = rememberRelatedOriginal(original);
     const playlist = rememberPlaylistOriginal(original);
+    const chat = rememberChatOriginal(original);
 
     // 何も無ければまだ早い
-    if (!comments && !related && !playlist) return false;
+    if (!comments && !related && !playlist && !chat) return false;
 
     // panelへ移動（存在するものだけ）
     if (comments && comments.parentElement !== panelComments) {
@@ -169,6 +230,9 @@ export const createOrchestrator = () => {
     }
     if (playlist && playlist.parentElement !== panelPlaylist) {
       panelPlaylist.appendChild(playlist);
+    }
+    if (chat && chat.parentElement !== panelChat) {
+      panelChat.appendChild(chat);
     }
 
     // active 初期適用（DOMが揃ってから）
@@ -185,6 +249,9 @@ export const createOrchestrator = () => {
     // playlist は遅れて出ることがあるので一回試す
     dockPlaylistIfExists();
 
+    // chat は遅れて出ることがあるので一回試す
+    dockChatIfExists();
+
     return true;
   };
 
@@ -193,6 +260,7 @@ export const createOrchestrator = () => {
     applied = true;
 
     startPlaylistWatch();
+    startChatWatch();
 
     if (tryApplyOnce()) return;
 
@@ -226,6 +294,7 @@ export const createOrchestrator = () => {
     restoreCommentsOriginal(original);
     restoreRelatedOriginal(original);
     restorePlaylistOriginal(original);
+    restoreChatOriginal(original);
 
     // UI掃除
     cleanupSideUi();
@@ -240,6 +309,7 @@ export const createOrchestrator = () => {
     resetOriginal();
 
     stopPlaylistWatch();
+    stopChatWatch();
   };
 
   return { apply, restore, syncMoveLeft };

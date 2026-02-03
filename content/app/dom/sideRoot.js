@@ -6,6 +6,7 @@ export const IDS = {
   panelComments: "yclh-panel-comments",
   panelRelated: "yclh-panel-related",
   panelPlaylist: "yclh-panel-playlist",
+  panelChat: "yclh-panel-chat",
 };
 
 const $id = (id) => document.getElementById(id);
@@ -15,6 +16,7 @@ export const getPanelsRoot = () => $id(IDS.panels);
 export const getPanelComments = () => $id(IDS.panelComments);
 export const getPanelRelated = () => $id(IDS.panelRelated);
 export const getPanelPlaylist = () => $id(IDS.panelPlaylist);
+export const getPanelChat = () => $id(IDS.panelChat);
 
 /**
  * tabs（comments / related）を作る
@@ -90,9 +92,13 @@ export const ensureSidePanels = (sideRoot) => {
     const panelPlaylist = document.createElement("div");
     panelPlaylist.id = IDS.panelPlaylist;
 
+    const panelChat = document.createElement("div");
+    panelChat.id = IDS.panelChat;
+
     panels.appendChild(panelComments);
     panels.appendChild(panelRelated);
     panels.appendChild(panelPlaylist);
+    panels.appendChild(panelChat);
 
     // tabs が居ればその後ろ、無ければ side の先頭に置く
     const tabs = getTabsRoot();
@@ -108,7 +114,7 @@ export const setActivePanel = (name) => {
   const panels = getPanelsRoot();
   if (!panels) return false;
 
-  panels.dataset.active = name; // "comments" | "related"
+  panels.dataset.active = name;
   return true;
 };
 
@@ -135,7 +141,9 @@ export const cleanupSideUi = () => {
     const c = getPanelComments();
     const r = getPanelRelated();
     const p = getPanelPlaylist();
-    if (!c?.firstChild && !r?.firstChild && !p?.firstChild) panels.remove();
+    const ch = getPanelChat();
+    if (!c?.firstChild && !r?.firstChild && !p?.firstChild && !ch?.firstChild)
+      panels.remove();
   }
 
   const tabs = getTabsRoot();

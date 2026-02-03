@@ -43,6 +43,10 @@ const ORIGINAL_TEMPLATE = {
   playlistEl: null,
   playlistParent: null,
   playlistNext: null,
+
+  chatEl: null,
+  chatParent: null,
+  chatNext: null,
 };
 
 export const original = { ...ORIGINAL_TEMPLATE };
@@ -67,7 +71,7 @@ const RUNTIME_TEMPLATE = {
   ambientOff: true,
 
   // 表示中のpanel
-  activePanel: "comments", // "comments" | "related" | "playlist"
+  activePanel: "comments", // "comments" | "related" | "playlist" | "chat"
 };
 
 export const runtimeState = { ...RUNTIME_TEMPLATE };

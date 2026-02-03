@@ -80,3 +80,27 @@ export const restorePlaylistOriginal = (original) => {
 
   return safeRestoreInsert(el, parent, original.playlistNext);
 };
+
+/**
+ * chat
+ * - #chat-container を覚える / 戻す
+ */
+export const rememberChatOriginal = (original) => {
+  const chat = document.querySelector("#chat-container");
+  if (!chat) return null;
+
+  if (!original.chatEl) {
+    original.chatEl = chat;
+    original.chatParent = chat.parentElement;
+    original.chatNext = chat.nextSibling;
+  }
+  return chat;
+};
+
+export const restoreChatOriginal = (original) => {
+  const el = original.chatEl;
+  const parent = original.chatParent;
+  if (!el || !parent) return false;
+
+  return safeRestoreInsert(el, parent, original.chatNext);
+};
