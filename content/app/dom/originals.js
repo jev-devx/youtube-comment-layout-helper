@@ -86,21 +86,34 @@ export const restorePlaylistOriginal = (original) => {
  * - #chat-container を覚える / 戻す
  */
 export const rememberChatOriginal = (original) => {
-  const chat = document.querySelector("#chat-container");
-  if (!chat) return null;
+  // chat の “箱” を丸ごと動かすのが一番安定（frame単体より安全）
+  const chat =
+    document.querySelector("ytd-watch-flexy #chat-container") ||
+    document.querySelector("#chat-container");
 
-  if (!original.chatEl) {
+  if (chat && !original.chatEl) {
     original.chatEl = chat;
     original.chatParent = chat.parentElement;
     original.chatNext = chat.nextSibling;
   }
-  return chat;
+  return original.chatEl || null;
 };
 
 export const restoreChatOriginal = (original) => {
   const el = original.chatEl;
-  const parent = original.chatParent;
-  if (!el || !parent) return false;
+  if (!el || !original.chatParent) return;
 
-  return safeRestoreInsert(el, parent, original.chatNext);
+  // 元の位置に戻す
+  if (
+    original.chatNext &&
+    original.chatNext.parentNode === original.chatParent
+  ) {
+    original.chatParent.insertBefore(el, original.chatNext);
+  } else {
+    original.chatParent.appendChild(el);
+  }
+
+  original.chatEl = null;
+  original.chatParent = null;
+  original.chatNext = null;
 };
