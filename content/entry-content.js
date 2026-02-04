@@ -7,21 +7,6 @@ import { createOrchestrator } from "./app/orchestrator/index.js";
 (() => {
   const orc = createOrchestrator();
 
-  const updateRuntimeToPopup = () => {
-    try {
-      chrome.runtime.sendMessage({
-        type: "YCLH_SET_RUNTIME",
-        payload: {
-          pageType: location.hostname.endsWith("youtube.com")
-            ? "youtube"
-            : "unsupported",
-          suspended: !settings.enabled,
-          suspendReason: settings.enabled ? null : "disabled",
-        },
-      });
-    } catch {}
-  };
-
   const applyAmbientFlags = () => {
     const html = document.documentElement;
 
@@ -50,7 +35,7 @@ import { createOrchestrator } from "./app/orchestrator/index.js";
       applyAmbientFlags();
       console.log("[YCLH] orc.restore() ok", location.href);
     }
-    updateRuntimeToPopup();
+    orc.publishRuntime?.(); // popup反映（最終状態をorc側が送る）
   };
 
   // 初回

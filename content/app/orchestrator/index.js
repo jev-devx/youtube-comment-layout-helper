@@ -50,10 +50,15 @@ export const createOrchestrator = () => {
 
   let cssInserted = false;
   const sizing = createSizing();
-  // ------------------------------------------------------------
-  // replay auto open (minimal)
-  // ------------------------------------------------------------
+
   let replayClickedForVideoId = "";
+
+  let suspendedReason = null; // null | "narrow" | "theater" | "non-watch" | "disabled"
+
+  let narrowState = null; // null | boolean
+  const NARROW_BREAKPOINT = 1260;
+  const NARROW_BREAKPOINT_ENTER = 1240;
+  const NARROW_BREAKPOINT_EXIT = 1280;
 
   // ------------------------------------------------------------
   // boot watch (短命監視)
@@ -93,6 +98,168 @@ export const createOrchestrator = () => {
   };
 
   // ------------------------------------------------------------
+  // state change
+  // ------------------------------------------------------------
+  const isWatch = () => location.pathname === "/watch";
+
+  const getViewportWidth = () => {
+    const vv = window.visualViewport;
+    const w1 = vv && vv.width != null ? vv.width : null;
+    const w2 = window.innerWidth != null ? window.innerWidth : null;
+    const w3 = document.documentElement.clientWidth;
+    return Math.round(w1 != null ? w1 : w2 != null ? w2 : w3);
+  };
+
+  const isNarrowMode = () => {
+    const w = getViewportWidth();
+    if (narrowState == null) narrowState = w < NARROW_BREAKPOINT;
+
+    if (!narrowState && w < NARROW_BREAKPOINT_ENTER) narrowState = true;
+    else if (narrowState && w > NARROW_BREAKPOINT_EXIT) narrowState = false;
+
+    return narrowState;
+  };
+
+  const isTheaterMode = () => {
+    const flexy = document.querySelector("ytd-watch-flexy");
+    if (!flexy) return false;
+
+    return (
+      flexy.hasAttribute("theater") ||
+      flexy.hasAttribute("theater-requested") ||
+      flexy.classList.contains("theater") ||
+      flexy.hasAttribute("is-theater-mode") ||
+      flexy.classList.contains("theater-mode")
+    );
+  };
+
+  const publishRuntime = () => {
+    try {
+      chrome.runtime.sendMessage({
+        type: "YCLH_SET_RUNTIME",
+        payload: {
+          pageType: location.hostname.endsWith("youtube.com")
+            ? "youtube"
+            : "unsupported",
+
+          // popupが見てるやつ
+          suspended: runtimeState.suspended,
+          suspendReason: runtimeState.suspendReason,
+
+          // デバッグ用（任意）
+          navSeq,
+          lastUrl: location.href,
+        },
+      });
+    } catch {}
+  };
+
+  const setSuspended = (reason) => {
+    if (suspendedReason === reason) return false;
+    suspendedReason = reason;
+
+    runtimeState.suspended = !!reason;
+    runtimeState.suspendReason =
+      reason === "narrow" ||
+      reason === "theater" ||
+      reason === "non-watch" ||
+      reason === "disabled"
+        ? reason
+        : null;
+
+    // ここで「popupが読む runtime」を更新
+    publishRuntime();
+
+    return true;
+  };
+  const evaluateEnvAndSync = (from = "") => {
+    if (!applied) return;
+
+    // 設定OFFなら “disabled” 扱い（popupに出すなら）
+    if (!settings.enabled) {
+      if (setSuspended("disabled")) restore({ hard: false });
+      return;
+    }
+
+    if (!isWatch()) {
+      if (setSuspended("non-watch")) restore({ hard: false });
+      return;
+    }
+
+    if (isNarrowMode()) {
+      if (setSuspended("narrow")) restore({ hard: false });
+      return;
+    }
+
+    if (isTheaterMode()) {
+      if (setSuspended("theater")) restore({ hard: false });
+      return;
+    }
+
+    // ここまで来たら環境OK
+    if (setSuspended(null)) {
+      // 復帰（DOMが揃ってない可能性があるので bumpNav か tryApplyOnce で再開）
+      bumpNav("env-resume:" + from);
+    }
+  };
+
+  let envTimer = 0;
+  let envFlexyObserver = null;
+  const startEnvWatch = () => {
+    if (envTimer) return;
+
+    // resize / visualViewport
+    const onResize = () => evaluateEnvAndSync("resize");
+    window.addEventListener("resize", onResize, true);
+    window.visualViewport?.addEventListener?.("resize", onResize, true);
+
+    envTimer = setInterval(() => evaluateEnvAndSync("tick"), 800); // 保険（軽め）
+
+    // theater attribute 監視（flexyがある時）
+    const attachFlexyObserver = () => {
+      if (envFlexyObserver) return;
+      const flexy = document.querySelector("ytd-watch-flexy");
+      if (!flexy) return;
+
+      envFlexyObserver = new MutationObserver(() =>
+        evaluateEnvAndSync("flexy"),
+      );
+      envFlexyObserver.observe(flexy, {
+        attributes: true,
+        attributeFilter: ["theater", "theater-requested", "class"],
+      });
+    };
+
+    attachFlexyObserver();
+    const boot = new MutationObserver(() => attachFlexyObserver());
+    boot.observe(document.documentElement, { childList: true, subtree: true });
+    setTimeout(() => boot.disconnect(), 6000);
+
+    // 初回評価
+    evaluateEnvAndSync("start");
+  };
+
+  const stopEnvWatch = () => {
+    if (!envTimer) return;
+
+    // remove listeners
+    const onResize = () => evaluateEnvAndSync("resize");
+    window.removeEventListener("resize", onResize, true);
+    window.visualViewport?.removeEventListener?.("resize", onResize, true);
+
+    clearInterval(envTimer);
+    envTimer = 0;
+
+    if (envFlexyObserver) {
+      envFlexyObserver.disconnect();
+      envFlexyObserver = null;
+    }
+
+    suspendedReason = null;
+    narrowState = null;
+  };
+
+  // ------------------------------------------------------------
   // navigation (SPA) generation
   // ------------------------------------------------------------
   let navSeq = 0;
@@ -100,6 +267,8 @@ export const createOrchestrator = () => {
   let navReapplyTimer = 0;
 
   const bumpNav = (reason) => {
+    if (runtimeState.suspended) return;
+
     navSeq++;
     const seq = navSeq;
 
@@ -346,15 +515,10 @@ export const createOrchestrator = () => {
   let navInstalled = false;
   let flexyObserver = null;
 
-  const isWatch = () => location.pathname === "/watch";
-
   const checkUrlChanged = (reason) => {
     const url = location.href;
     if (url === lastUrl) return;
     lastUrl = url;
-
-    // watch以外は apply できない前提ならここで弾く（必要なら調整）
-    // if (!isWatch()) return;
 
     bumpNav(reason);
   };
@@ -908,6 +1072,13 @@ export const createOrchestrator = () => {
 
     installNavDetectors();
 
+    // popupに「enabledになった」反映を即出す（この直後 env 判定でsuspendになる可能性もある）
+    publishRuntime();
+
+    startEnvWatch();
+    evaluateEnvAndSync("apply");
+    if (runtimeState.suspended) return;
+
     startPlaylistWatch();
 
     if (tryApplyOnce()) return;
@@ -932,13 +1103,17 @@ export const createOrchestrator = () => {
   // ------------------------------------------------------------
   // 無効化のエントリ。sizing停止→元位置復帰→UI/Root/CSS/flags/state を掃除する。
   // 監視やpinも必ず止め、次回applyが綺麗に動く状態に戻す。
-  const restore = () => {
+  const restore = ({ hard = true } = {}) => {
     if (!applied) return;
-    applied = false;
+
+    // hard: ユーザーOFF → 完全停止
+    // soft: theater/narrow など → 「一時停止」なので applied は維持する
+    if (hard) applied = false;
 
     stopBootWatch();
 
     // chat の overlay/pin を必ず解除
+    stopPickSecondChatView();
     stopPinChat();
     stopChatDocking();
 
@@ -961,14 +1136,22 @@ export const createOrchestrator = () => {
     delete document.documentElement.dataset.yclhLeft;
     delete document.documentElement.dataset.yclhActive;
 
-    // state 掃除
-    replayClickedForVideoId = "";
+    // soft/hard 共通：次回のタブ分岐は必ず再計算させたい
     lastCtxSig = "";
 
-    resetOriginal();
+    // hard だけ：動画単位の状態や退避参照を完全リセット
+    if (hard) {
+      replayClickedForVideoId = "";
+      resetOriginal();
+      stopPlaylistWatch();
+      stopEnvWatch();
+    } else {
+      startPlaylistWatch();
+    }
 
-    stopPlaylistWatch();
+    // 最終状態をpopupへ
+    publishRuntime();
   };
 
-  return { apply, restore, syncMoveLeft };
+  return { apply, restore, syncMoveLeft, publishRuntime };
 };
