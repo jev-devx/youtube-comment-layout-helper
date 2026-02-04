@@ -41,13 +41,16 @@ export const createOrchestrator = () => {
   // runtime flags / state
   // ------------------------------------------------------------
   // orchestrator の有効/無効、boot監視、CSS挿入状態などの内部状態を保持する。
-  // ここは “SPA + DOM遅延生成” を吸収するためのフラグ群。
   let applied = false;
   let bootObserver = null;
   let bootTimer = 0;
 
   let cssInserted = false;
   const sizing = createSizing();
+  // ------------------------------------------------------------
+  // replay auto open (minimal)
+  // ------------------------------------------------------------
+  let replayClickedForVideoId = "";
 
   // ------------------------------------------------------------
   // boot watch (短命監視)
@@ -68,7 +71,7 @@ export const createOrchestrator = () => {
   // ------------------------------------------------------------
   // css injection (content.css の on/off)
   // ------------------------------------------------------------
-  // content側にCSSを差し込む（有効化時）メッセージを送る。
+  // content側にCSSを差し込む（有効化 / 無効化時）メッセージを送る。
   // 二重実行を避けるため cssInserted をガードにする。
   const ensureCssInserted = () => {
     if (cssInserted) return;
@@ -78,14 +81,156 @@ export const createOrchestrator = () => {
     } catch {}
   };
 
-  // content側にCSSを外す（無効化時）メッセージを送る。
-  // 二重実行を避けるため cssInserted をガードにする。
   const ensureCssRemoved = () => {
     if (!cssInserted) return;
     cssInserted = false;
     try {
       chrome.runtime.sendMessage({ type: "YCLH_REMOVE_CSS" });
     } catch {}
+  };
+
+  // ------------------------------------------------------------
+  // navigation (SPA) generation
+  // ------------------------------------------------------------
+  let navSeq = 0;
+  let lastUrl = location.href;
+  let navReapplyTimer = 0;
+
+  const bumpNav = (reason) => {
+    navSeq++;
+    const seq = navSeq;
+
+    // 動画単位の状態はここでリセット（超重要）
+    replayClickedForVideoId = "";
+    chatViewTries = 0;
+    lastChatViewPickAt = 0;
+
+    // いま pin / pick が走ってるなら止めて、次のDOMでやり直す
+    stopPickSecondChatView();
+    stopPinChat();
+
+    // playlistは再出現するので監視は動かし続ける（or 再起動）
+    startPlaylistWatch();
+
+    // すぐtryApplyすると負けやすいので少し待つ（YouTubeがDOMを差し替える）
+    if (navReapplyTimer) clearTimeout(navReapplyTimer);
+    navReapplyTimer = setTimeout(() => {
+      navReapplyTimer = 0;
+      if (!applied) return;
+      if (seq !== navSeq) return;
+
+      // いったん1回だけ再適用を試す
+      if (tryApplyOnce()) return;
+
+      // まだ揃ってないなら、短命bootWatchを“この遷移世代”で再開
+      stopBootWatch();
+      bootObserver = new MutationObserver(() => {
+        if (!applied) return;
+        if (seq !== navSeq) return;
+        if (tryApplyOnce()) stopBootWatch();
+      });
+      bootObserver.observe(document.documentElement, {
+        childList: true,
+        subtree: true,
+      });
+      bootTimer = setTimeout(() => {
+        if (seq === navSeq) stopBootWatch();
+      }, 5000);
+    }, 80);
+  };
+
+  // ------------------------------------------------------------
+  // navigation detectors
+  // ------------------------------------------------------------
+  let navInstalled = false;
+  let flexyObserver = null;
+
+  const isWatch = () => location.pathname === "/watch";
+
+  const checkUrlChanged = (reason) => {
+    const url = location.href;
+    if (url === lastUrl) return;
+    lastUrl = url;
+
+    // watch以外は apply できない前提ならここで弾く（必要なら調整）
+    // if (!isWatch()) return;
+
+    bumpNav(reason);
+  };
+
+  const installNavDetectors = () => {
+    if (navInstalled) return;
+    navInstalled = true;
+
+    // --- History hook (pushState/replaceState) ---
+    const origPush = history.pushState;
+    const origReplace = history.replaceState;
+
+    history.pushState = function (...args) {
+      const r = origPush.apply(this, args);
+      checkUrlChanged("pushState");
+      return r;
+    };
+    history.replaceState = function (...args) {
+      const r = origReplace.apply(this, args);
+      checkUrlChanged("replaceState");
+      return r;
+    };
+
+    window.addEventListener(
+      "popstate",
+      () => checkUrlChanged("popstate"),
+      true,
+    );
+
+    // --- YouTube SPA events ---
+    window.addEventListener(
+      "yt-navigate-start",
+      () => checkUrlChanged("yt-navigate-start"),
+      true,
+    );
+    window.addEventListener(
+      "yt-navigate-finish",
+      () => checkUrlChanged("yt-navigate-finish"),
+      true,
+    );
+    window.addEventListener(
+      "yt-page-data-updated",
+      () => checkUrlChanged("yt-page-data-updated"),
+      true,
+    );
+
+    // --- Backup: watch flexy の video-id 変化 ---
+    const startFlexyWatch = () => {
+      if (flexyObserver) return;
+
+      const flexy = document.querySelector("ytd-watch-flexy");
+      if (!flexy) return;
+
+      let lastVid = flexy.getAttribute("video-id") || "";
+
+      flexyObserver = new MutationObserver(() => {
+        const vid = flexy.getAttribute("video-id") || "";
+        if (vid && vid !== lastVid) {
+          lastVid = vid;
+          bumpNav("flexy-video-id");
+        }
+      });
+
+      flexyObserver.observe(flexy, {
+        attributes: true,
+        attributeFilter: ["video-id"],
+      });
+    };
+
+    // flexyが後から来るので短命で探す
+    const flexyBoot = new MutationObserver(() => startFlexyWatch());
+    flexyBoot.observe(document.documentElement, {
+      childList: true,
+      subtree: true,
+    });
+    setTimeout(() => flexyBoot.disconnect(), 6000);
+    startFlexyWatch();
   };
 
   // ------------------------------------------------------------
@@ -258,9 +403,16 @@ export const createOrchestrator = () => {
 
     if (name === "chat") {
       startPinChat();
+
+      clickReplayOnceOnChatTab?.();
+
+      startPickSecondChatView();
+
       document.documentElement.dataset.yclhActive = name;
     } else {
+      stopPickSecondChatView();
       stopPinChat();
+
       delete document.documentElement.dataset.yclhActive;
     }
   };
@@ -269,7 +421,6 @@ export const createOrchestrator = () => {
   // moveLeft sync
   // ------------------------------------------------------------
   // enabled中の html dataset を更新し、CSS側の moveLeft を切り替える。
-  // 無効中は何もしない（restore と競合させない）。
   const applyMoveLeftFlags = () => {
     document.documentElement.dataset.yclh = "1";
 
@@ -344,6 +495,198 @@ export const createOrchestrator = () => {
     return true;
   };
 
+  // ---- replay auto open: "click as last resort" ----
+  const getVideoId = () => new URL(location.href).searchParams.get("v") || "";
+
+  const findChatReplayButton = () => {
+    const root =
+      document.querySelector("ytd-watch-flexy #chat-container") ||
+      document.querySelector("#chat-container") ||
+      document;
+
+    const candidates = root.querySelectorAll(
+      "button, yt-button-renderer, tp-yt-paper-button, ytd-button-renderer",
+    );
+
+    return (
+      Array.from(candidates).find((el) => {
+        const text = (el.textContent || "").trim();
+        const aria = (el.getAttribute?.("aria-label") || "").trim();
+        return (
+          /チャットのリプレイ|Chat replay/i.test(text) ||
+          /チャットのリプレイ|Chat replay/i.test(aria)
+        );
+      }) || null
+    );
+  };
+
+  // 1回だけ押す（見つかったら押す／見つからなければ何もしない）
+  const clickReplayOnceOnChatTab = () => {
+    const vid = getVideoId();
+    if (!vid) return false;
+
+    // 同じ動画では1回だけ
+    if (replayClickedForVideoId === vid) return false;
+
+    const el = findChatReplayButton();
+    if (!el) return false;
+
+    // 内側buttonがあればそれを押す（renderer系対策）
+    const btn = el.querySelector?.("button") || el;
+    btn.click();
+
+    replayClickedForVideoId = vid;
+    return true;
+  };
+
+  // ------------------------------------------------------------
+  // chat view dropdown: open label -> pick 2nd item
+  // ------------------------------------------------------------
+  let chatViewTimer = 0;
+  let chatViewTries = 0;
+  let lastChatViewPickAt = 0;
+
+  const CHAT_VIEW_CLICK_COOLDOWN_MS = 1500;
+  const CHAT_VIEW_MAX_TRIES = 10;
+
+  const getChatFrame = () => document.querySelector("#chatframe");
+
+  const getChatDoc = () => {
+    const iframe = getChatFrame();
+    if (!iframe) return null;
+    try {
+      return iframe.contentDocument || null;
+    } catch {
+      return null;
+    }
+  };
+
+  const getChatWin = () => {
+    const iframe = getChatFrame();
+    if (!iframe) return null;
+    try {
+      return iframe.contentWindow || null;
+    } catch {
+      return null;
+    }
+  };
+
+  const isVisible = (el) => {
+    if (!el) return false;
+    if (el.closest?.('[hidden], [aria-hidden="true"]')) return false;
+    const r = el.getBoundingClientRect?.();
+    return !r || (r.width > 0 && r.height > 0);
+  };
+
+  const dispatchClickInFrame = (win, el) => {
+    if (!win || !el) return false;
+    const opt = { bubbles: true, cancelable: true, composed: true, view: win };
+    el.dispatchEvent(new win.MouseEvent("pointerdown", opt));
+    el.dispatchEvent(new win.MouseEvent("mousedown", opt));
+    el.dispatchEvent(new win.MouseEvent("mouseup", opt));
+    el.dispatchEvent(new win.MouseEvent("click", opt));
+    return true;
+  };
+
+  const getLabelTextInFrame = (doc) => {
+    const label = doc?.querySelector(
+      "#live-chat-view-selector-sub-menu yt-dropdown-menu #label-text",
+    );
+    return (label?.textContent || "").trim();
+  };
+
+  const findTriggerInFrame = (doc) => {
+    return (
+      doc?.querySelector(
+        "#live-chat-view-selector-sub-menu yt-dropdown-menu tp-yt-paper-button#label",
+      ) ||
+      doc?.querySelector(
+        "#live-chat-view-selector-sub-menu yt-dropdown-menu #label",
+      ) ||
+      null
+    );
+  };
+
+  const findVisibleMenuInFrame = (doc) => {
+    const menus = Array.from(
+      doc?.querySelectorAll("tp-yt-paper-listbox#menu") || [],
+    );
+    const visible = menus.filter((m) => isVisible(m));
+    if (visible.length) return visible[visible.length - 1];
+
+    return (
+      doc?.querySelector(
+        "#live-chat-view-selector-sub-menu tp-yt-paper-listbox#menu",
+      ) || null
+    );
+  };
+
+  const clickSecondItemInMenu = (win, menu) => {
+    if (!win || !menu) return false;
+
+    const links = Array.from(menu.querySelectorAll("a.yt-simple-endpoint"));
+    if (links.length < 2) return false;
+
+    const second = links[1];
+    return dispatchClickInFrame(win, second);
+  };
+
+  const pickSecondChatViewOnce = () => {
+    const doc = getChatDoc();
+    const win = getChatWin();
+    if (!doc || !win) return false;
+
+    const label = getLabelTextInFrame(doc);
+    if (label === "チャット" || label === "チャットのリプレイ") return true;
+
+    const trigger = findTriggerInFrame(doc);
+    if (!trigger) return false;
+
+    const now = Date.now();
+    if (now - lastChatViewPickAt < CHAT_VIEW_CLICK_COOLDOWN_MS) return false;
+    lastChatViewPickAt = now;
+
+    dispatchClickInFrame(win, trigger);
+
+    let innerTries = 0;
+    const tick = () => {
+      innerTries++;
+      const menu = findVisibleMenuInFrame(doc);
+      if (menu && clickSecondItemInMenu(win, menu)) return;
+      if (innerTries < 6) setTimeout(tick, 120);
+    };
+    setTimeout(tick, 120);
+
+    return true;
+  };
+
+  const startPickSecondChatView = () => {
+    if (chatViewTimer) return;
+    chatViewTries = 0;
+
+    const tick = () => {
+      chatViewTimer = 0;
+      if (!applied) return;
+
+      chatViewTries++;
+
+      if (pickSecondChatViewOnce()) return;
+
+      if (chatViewTries < CHAT_VIEW_MAX_TRIES) {
+        chatViewTimer = setTimeout(tick, 200);
+      }
+    };
+
+    chatViewTimer = setTimeout(tick, 350);
+  };
+
+  const stopPickSecondChatView = () => {
+    if (chatViewTimer) {
+      clearTimeout(chatViewTimer);
+      chatViewTimer = 0;
+    }
+  };
+
   // ------------------------------------------------------------
   // public: apply
   // ------------------------------------------------------------
@@ -352,6 +695,8 @@ export const createOrchestrator = () => {
   const apply = () => {
     if (applied) return;
     applied = true;
+
+    installNavDetectors();
 
     startPlaylistWatch();
 
@@ -407,6 +752,8 @@ export const createOrchestrator = () => {
     delete document.documentElement.dataset.yclhActive;
 
     // state 掃除
+    replayClickedForVideoId = "";
+
     resetOriginal();
 
     stopPlaylistWatch();
