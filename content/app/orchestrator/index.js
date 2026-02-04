@@ -32,6 +32,9 @@ import {
   setActivePanel,
   setActiveTab,
   cleanupSideUi,
+  setTabEnabled,
+  setTabVisible,
+  hasTabButton,
 } from "../dom/sideRoot.js";
 
 import { createSizing } from "../dom/sizing.js";
@@ -119,8 +122,14 @@ export const createOrchestrator = () => {
       if (!applied) return;
       if (seq !== navSeq) return;
 
-      // いったん1回だけ再適用を試す
-      if (tryApplyOnce()) return;
+      // 1回だけ再適用を試して、300ms後に再度呼ぶ
+      if (tryApplyOnce()) {
+        syncTabsByContext();
+        setTimeout(() => {
+          if (applied) syncTabsByContext();
+        }, 300);
+        return;
+      }
 
       // まだ揃ってないなら、短命bootWatchを“この遷移世代”で再開
       stopBootWatch();
@@ -137,6 +146,198 @@ export const createOrchestrator = () => {
         if (seq === navSeq) stopBootWatch();
       }, 5000);
     }, 80);
+  };
+
+  // ------------------------------------------------------------
+  // tab gating: context (reuse old YCLH logic)
+  // ------------------------------------------------------------
+  const isPlaylistCheck = () => {
+    try {
+      return new URL(location.href).searchParams.has("list");
+    } catch {
+      return false;
+    }
+  };
+
+  const getPlayerResponse = () => {
+    return (
+      window.ytInitialPlayerResponse ||
+      window.ytcfg?.get?.("PLAYER_RESPONSE") ||
+      window.ytcfg?.data_?.PLAYER_RESPONSE ||
+      null
+    );
+  };
+
+  const getLiveBroadcastDetails = () => {
+    const pr = getPlayerResponse();
+    return (
+      pr?.microformat?.playerMicroformatRenderer?.liveBroadcastDetails || null
+    );
+  };
+
+  const isLiveFact = () => {
+    const flexy = document.querySelector("ytd-watch-flexy");
+    const pr = getPlayerResponse();
+    const liveDetails = getLiveBroadcastDetails();
+
+    if (liveDetails?.isLiveNow === true) return true;
+
+    if (pr?.videoDetails?.isLiveContent === true) {
+      if (document.querySelector(".ytp-live-badge")) return true;
+      if (document.querySelector("ytd-live-chat-frame, yt-live-chat-renderer"))
+        return true;
+    }
+
+    if (document.querySelector("ytd-live-chat-frame, yt-live-chat-renderer"))
+      return true;
+
+    if (
+      flexy &&
+      (flexy.isLiveContent === true || flexy.hasAttribute("is-live-content"))
+    )
+      return true;
+
+    return false;
+  };
+
+  const hasReplayEntryUi = () => {
+    const scope =
+      document.querySelector("#secondary") ||
+      document.querySelector("ytd-watch-flexy") ||
+      document;
+
+    const btns = scope.querySelectorAll("button, a, tp-yt-paper-button");
+
+    for (const el of btns) {
+      const aria = (el.getAttribute("aria-label") || "").toLowerCase();
+      const title = (el.getAttribute("title") || "").toLowerCase();
+      const tip = (el.getAttribute("data-tooltip-text") || "").toLowerCase();
+      const text = (el.textContent || "").trim();
+
+      if (
+        aria.includes("replay") ||
+        title.includes("replay") ||
+        tip.includes("replay")
+      )
+        return true;
+
+      if (text.includes("チャットのリプレイ")) return true;
+    }
+    return false;
+  };
+
+  const isReplayFact = () => {
+    const pr = getPlayerResponse();
+    const liveDetails = getLiveBroadcastDetails();
+
+    if (
+      document.querySelector("ytd-live-chat-replay-renderer") ||
+      document.querySelector('iframe[src*="live_chat_replay"]')
+    ) {
+      return true;
+    }
+
+    if (
+      pr?.videoDetails?.isLiveContent === true &&
+      liveDetails &&
+      liveDetails.isLiveNow === false
+    ) {
+      return true;
+    }
+
+    if (hasReplayEntryUi()) return true;
+
+    return false;
+  };
+
+  const detectContext = () => {
+    const playlist = isPlaylistCheck();
+    const liveFact = isLiveFact();
+    const replayFact = isReplayFact();
+
+    if (!liveFact && !replayFact)
+      return { kind: "normal", playlist, hasChat: false };
+
+    if (liveFact && !replayFact)
+      return { kind: "live", playlist: false, hasChat: true };
+
+    // replay
+    return { kind: "replay", playlist, hasChat: true };
+  };
+
+  // タブの出し分け
+  let lastCtxSig = "";
+  const syncTabsByContext = () => {
+    if (!applied) return;
+
+    // tabs がまだ生成されていない場合は何もしない
+    // related は常に存在する前提なので existence check に使う
+    if (!hasTabButton("related")) return;
+
+    const ctx = detectContext();
+    const sig = `${ctx.kind}|pl:${ctx.playlist ? 1 : 0}`;
+
+    if (sig === lastCtxSig) return;
+    lastCtxSig = sig;
+
+    console.log("[YCLH] video type ->", ctx);
+
+    // 全消し
+    setTabVisible("comments", false);
+    setTabVisible("related", false);
+    setTabVisible("playlist", false);
+    setTabVisible("chat", false);
+
+    setTabEnabled("comments", false);
+    setTabEnabled("related", false);
+    setTabEnabled("playlist", false);
+    setTabEnabled("chat", false);
+
+    // related は常に
+    setTabVisible("related", true);
+    setTabEnabled("related", true);
+
+    if (ctx.kind === "normal") {
+      setTabVisible("comments", true);
+      setTabEnabled("comments", true);
+
+      if (ctx.playlist) {
+        setTabVisible("playlist", true);
+        setTabEnabled("playlist", true);
+      }
+    } else if (ctx.kind === "live") {
+      setTabVisible("chat", true);
+      setTabEnabled("chat", true);
+    } else {
+      // replay
+      setTabVisible("comments", true);
+      setTabEnabled("comments", true);
+
+      if (ctx.playlist) {
+        setTabVisible("playlist", true);
+        setTabEnabled("playlist", true);
+      }
+
+      setTabVisible("chat", true);
+      setTabEnabled("chat", true);
+    }
+
+    // activeが死んだらフォールバック（ここだけ今回の構造に合わせる）
+    const active = runtimeState.activePanel || "comments";
+    const activeOk =
+      (active === "comments" &&
+        (ctx.kind === "normal" || ctx.kind === "replay")) ||
+      active === "related" ||
+      (active === "playlist" && ctx.playlist) ||
+      (active === "chat" && ctx.hasChat);
+
+    if (!activeOk) applyActive(getDefaultPanelByContext(ctx));
+  };
+
+  // live / replay は chat を初期選択タブとする
+  const getDefaultPanelByContext = (ctx) => {
+    if (ctx.kind === "live" || ctx.kind === "replay") return "chat";
+    return "comments";
   };
 
   // ------------------------------------------------------------
@@ -262,6 +463,8 @@ export const createOrchestrator = () => {
       if (dockPlaylistIfExists()) {
         playlistObserver.disconnect();
         playlistObserver = null;
+
+        syncTabsByContext();
       }
     });
 
@@ -405,8 +608,9 @@ export const createOrchestrator = () => {
       startPinChat();
 
       clickReplayOnceOnChatTab?.();
-
       startPickSecondChatView();
+
+      syncTabsByContext();
 
       document.documentElement.dataset.yclhActive = name;
     } else {
@@ -483,7 +687,11 @@ export const createOrchestrator = () => {
       panelPlaylist.appendChild(playlist);
     }
 
-    applyActive(runtimeState.activePanel || "comments");
+    const ctx = detectContext();
+    const initial = runtimeState.activePanel || getDefaultPanelByContext(ctx);
+    applyActive(initial);
+
+    syncTabsByContext();
 
     document.documentElement.dataset.yclh = "1";
     ensureCssInserted();
@@ -696,6 +904,8 @@ export const createOrchestrator = () => {
     if (applied) return;
     applied = true;
 
+    lastCtxSig = "";
+
     installNavDetectors();
 
     startPlaylistWatch();
@@ -753,6 +963,7 @@ export const createOrchestrator = () => {
 
     // state 掃除
     replayClickedForVideoId = "";
+    lastCtxSig = "";
 
     resetOriginal();
 

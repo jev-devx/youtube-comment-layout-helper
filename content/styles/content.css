@@ -46,6 +46,17 @@ html[data-yclh="1"] #yclh-tabs button[data-tab] {
   text-overflow: ellipsis;
 }
 
+/* 非表示 */
+#yclh-tabs button[data-hidden="1"] {
+  display: none !important;
+}
+
+/* 非活性 */
+#yclh-tabs button[data-enabled="0"] {
+  opacity: 0.45;
+  pointer-events: none;
+}
+
 /* 選択中：赤で強調 */
 #yclh-tabs button[data-active="1"] {
   font-weight: 600;

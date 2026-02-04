@@ -149,3 +149,34 @@ export const cleanupSideUi = () => {
   const tabs = getTabsRoot();
   if (tabs) tabs.remove();
 };
+
+// タブの可視/有効を切り替え
+export const setTabVisible = (name, visible) => {
+  const tabs = getTabsRoot();
+  if (!tabs) return false;
+
+  const btn = tabs.querySelector(`button[data-tab="${name}"]`);
+  if (!btn) return false;
+
+  btn.dataset.hidden = visible ? "0" : "1";
+  return true;
+};
+
+export const setTabEnabled = (name, enabled) => {
+  const tabs = getTabsRoot();
+  if (!tabs) return false;
+
+  const btn = tabs.querySelector(`button[data-tab="${name}"]`);
+  if (!btn) return false;
+
+  btn.dataset.enabled = enabled ? "1" : "0";
+  btn.disabled = !enabled;
+  btn.setAttribute("aria-disabled", enabled ? "false" : "true");
+  return true;
+};
+
+export const hasTabButton = (name) => {
+  const tabs = getTabsRoot();
+  if (!tabs) return false;
+  return !!tabs.querySelector(`button[data-tab="${name}"]`);
+};
