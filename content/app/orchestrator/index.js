@@ -1020,6 +1020,9 @@ export const createOrchestrator = () => {
       // 既に同条件で適用済みなら、tabsの再同期だけ軽く
       syncTabsByContext();
 
+      // sig同一でも moveLeft だけは毎回整合させる
+      applyMoveLeftFlags();
+
       const ctx = detectContext();
       const active = runtimeState.activePanel || getDefaultPanelByContext(ctx);
       applyActive(active);
@@ -1055,6 +1058,10 @@ export const createOrchestrator = () => {
     syncTabsByContext();
 
     document.documentElement.dataset.yclh = "1";
+
+    // soft restore からの復帰でも moveLeft を復元
+    applyMoveLeftFlags();
+
     ensureCssInserted();
 
     sizing.start();
