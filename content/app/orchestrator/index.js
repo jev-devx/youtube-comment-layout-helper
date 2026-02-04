@@ -98,6 +98,75 @@ export const createOrchestrator = () => {
   };
 
   // ------------------------------------------------------------
+  // ready gate (DOM準備が整った瞬間に tryApplyOnce を再試行)
+  // ------------------------------------------------------------
+  let readyGateObserver = null;
+  let readyGateTimer = 0;
+
+  const startReadyGate = (why = "") => {
+    if (readyGateObserver) return;
+
+    const tick = () => {
+      if (!applied) return;
+      if (runtimeState.suspended) return;
+
+      // canBuildLayoutRoot が false なら tryApplyOnce しない
+      if (!canBuildLayoutRoot()) return;
+
+      if (tryApplyOnce()) {
+        stopReadyGate();
+        return;
+      }
+    };
+
+    readyGateObserver = new MutationObserver(() => tick());
+    readyGateObserver.observe(document.documentElement, {
+      childList: true,
+      subtree: true,
+    });
+
+    // 保険：observerが拾えないケース用に低頻度tick
+    readyGateTimer = setInterval(tick, 700);
+
+    // 初回も試す
+    tick();
+  };
+
+  const stopReadyGate = () => {
+    if (readyGateObserver) {
+      readyGateObserver.disconnect();
+      readyGateObserver = null;
+    }
+    if (readyGateTimer) {
+      clearInterval(readyGateTimer);
+      readyGateTimer = 0;
+    }
+  };
+
+  // ------------------------------------------------------------
+  // 署名ガード
+  // ------------------------------------------------------------
+  let lastAppliedSig = "";
+  const getApplySig = () => {
+    // 重要なものだけでOK（増やしすぎると無意味に変わる）
+    const vid = (() => {
+      try {
+        return new URL(location.href).searchParams.get("v") || "";
+      } catch {
+        return "";
+      }
+    })();
+
+    return [
+      "v2",
+      location.pathname,
+      vid,
+      settings.enabled ? "E1" : "E0",
+      settings.moveLeft ? "L1" : "L0",
+    ].join("|");
+  };
+
+  // ------------------------------------------------------------
   // state change
   // ------------------------------------------------------------
   const isWatch = () => location.pathname === "/watch";
@@ -177,7 +246,7 @@ export const createOrchestrator = () => {
 
     // 設定OFFなら “disabled” 扱い（popupに出すなら）
     if (!settings.enabled) {
-      if (setSuspended("disabled")) restore({ hard: false });
+      if (setSuspended("disabled")) restore({ hard: true });
       return;
     }
 
@@ -205,13 +274,14 @@ export const createOrchestrator = () => {
 
   let envTimer = 0;
   let envFlexyObserver = null;
+  let envOnResize = null;
   const startEnvWatch = () => {
     if (envTimer) return;
 
     // resize / visualViewport
-    const onResize = () => evaluateEnvAndSync("resize");
-    window.addEventListener("resize", onResize, true);
-    window.visualViewport?.addEventListener?.("resize", onResize, true);
+    envOnResize = () => evaluateEnvAndSync("resize");
+    window.addEventListener("resize", envOnResize, true);
+    window.visualViewport?.addEventListener?.("resize", envOnResize, true);
 
     envTimer = setInterval(() => evaluateEnvAndSync("tick"), 800); // 保険（軽め）
 
@@ -243,9 +313,9 @@ export const createOrchestrator = () => {
     if (!envTimer) return;
 
     // remove listeners
-    const onResize = () => evaluateEnvAndSync("resize");
-    window.removeEventListener("resize", onResize, true);
-    window.visualViewport?.removeEventListener?.("resize", onResize, true);
+    window.removeEventListener("resize", envOnResize, true);
+    window.visualViewport?.removeEventListener?.("resize", envOnResize, true);
+    envOnResize = null;
 
     clearInterval(envTimer);
     envTimer = 0;
@@ -294,9 +364,14 @@ export const createOrchestrator = () => {
       // 1回だけ再適用を試して、300ms後に再度呼ぶ
       if (tryApplyOnce()) {
         syncTabsByContext();
+
+        // active=chat なら pin 追随を確実に起動
+        if (runtimeState.activePanel === "chat") startPinChat();
+
         setTimeout(() => {
           if (applied) syncTabsByContext();
         }, 300);
+
         return;
       }
 
@@ -312,7 +387,15 @@ export const createOrchestrator = () => {
         subtree: true,
       });
       bootTimer = setTimeout(() => {
-        if (seq === navSeq) stopBootWatch();
+        if (seq === navSeq) {
+          stopBootWatch();
+
+          if (!applied) return;
+          if (runtimeState.suspended) return;
+
+          // DOMが遅れて揃ったときのためのゲート
+          startReadyGate("boot-timeout");
+        }
       }, 5000);
     }, 80);
   };
@@ -449,6 +532,13 @@ export const createOrchestrator = () => {
     if (sig === lastCtxSig) return;
     lastCtxSig = sig;
 
+    const preferred = getDefaultPanelByContext(ctx);
+    let active = runtimeState.activePanel || preferred;
+    if ((ctx.kind === "live" || ctx.kind === "replay") && active !== "chat") {
+      applyActive("chat");
+      active = "chat";
+    }
+
     console.log("[YCLH] video type ->", ctx);
 
     // 全消し
@@ -492,15 +582,15 @@ export const createOrchestrator = () => {
     }
 
     // activeが死んだらフォールバック（ここだけ今回の構造に合わせる）
-    const active = runtimeState.activePanel || "comments";
+    const activeFinal = runtimeState.activePanel || preferred;
     const activeOk =
-      (active === "comments" &&
+      (activeFinal === "comments" &&
         (ctx.kind === "normal" || ctx.kind === "replay")) ||
-      active === "related" ||
-      (active === "playlist" && ctx.playlist) ||
-      (active === "chat" && ctx.hasChat);
+      activeFinal === "related" ||
+      (activeFinal === "playlist" && ctx.playlist) ||
+      (activeFinal === "chat" && ctx.hasChat);
 
-    if (!activeOk) applyActive(getDefaultPanelByContext(ctx));
+    if (!activeOk) applyActive(preferred);
   };
 
   // live / replay は chat を初期選択タブとする
@@ -512,7 +602,6 @@ export const createOrchestrator = () => {
   // ------------------------------------------------------------
   // navigation detectors
   // ------------------------------------------------------------
-  let navInstalled = false;
   let flexyObserver = null;
 
   const checkUrlChanged = (reason) => {
@@ -523,47 +612,49 @@ export const createOrchestrator = () => {
     bumpNav(reason);
   };
 
+  // ------------------------------------------------------------
+  // double-injection guard (global)
+  // ------------------------------------------------------------
+  // content script が何かの事情で二重に走った場合に、history hook が二重化しないようにする。
+  const GLOBAL_KEY = "__yclhV2OrcGlobal";
+  const g = (window[GLOBAL_KEY] ||= {
+    navInstalled: false,
+    cleanupNav: null,
+    origPush: null,
+    origReplace: null,
+  });
+
   const installNavDetectors = () => {
-    if (navInstalled) return;
-    navInstalled = true;
+    if (g.navInstalled) return;
+    g.navInstalled = true;
 
     // --- History hook (pushState/replaceState) ---
-    const origPush = history.pushState;
-    const origReplace = history.replaceState;
+    g.origPush = history.pushState;
+    g.origReplace = history.replaceState;
 
-    history.pushState = function (...args) {
-      const r = origPush.apply(this, args);
+    const wrappedPush = function (...args) {
+      const r = g.origPush.apply(this, args);
       checkUrlChanged("pushState");
       return r;
     };
-    history.replaceState = function (...args) {
-      const r = origReplace.apply(this, args);
+    const wrappedReplace = function (...args) {
+      const r = g.origReplace.apply(this, args);
       checkUrlChanged("replaceState");
       return r;
     };
 
-    window.addEventListener(
-      "popstate",
-      () => checkUrlChanged("popstate"),
-      true,
-    );
+    history.pushState = wrappedPush;
+    history.replaceState = wrappedReplace;
 
-    // --- YouTube SPA events ---
-    window.addEventListener(
-      "yt-navigate-start",
-      () => checkUrlChanged("yt-navigate-start"),
-      true,
-    );
-    window.addEventListener(
-      "yt-navigate-finish",
-      () => checkUrlChanged("yt-navigate-finish"),
-      true,
-    );
-    window.addEventListener(
-      "yt-page-data-updated",
-      () => checkUrlChanged("yt-page-data-updated"),
-      true,
-    );
+    const onPop = () => checkUrlChanged("popstate");
+    const onYtStart = () => checkUrlChanged("yt-navigate-start");
+    const onYtFinish = () => checkUrlChanged("yt-navigate-finish");
+    const onPageUpdated = () => checkUrlChanged("yt-page-data-updated");
+
+    window.addEventListener("popstate", onPop, true);
+    window.addEventListener("yt-navigate-start", onYtStart, true);
+    window.addEventListener("yt-navigate-finish", onYtFinish, true);
+    window.addEventListener("yt-page-data-updated", onPageUpdated, true);
 
     // --- Backup: watch flexy の video-id 変化 ---
     const startFlexyWatch = () => {
@@ -588,14 +679,43 @@ export const createOrchestrator = () => {
       });
     };
 
-    // flexyが後から来るので短命で探す
     const flexyBoot = new MutationObserver(() => startFlexyWatch());
     flexyBoot.observe(document.documentElement, {
       childList: true,
       subtree: true,
     });
-    setTimeout(() => flexyBoot.disconnect(), 6000);
+    const flexyBootTimer = setTimeout(() => flexyBoot.disconnect(), 6000);
     startFlexyWatch();
+
+    // cleanup（hard restore で戻す用）
+    g.cleanupNav = () => {
+      try {
+        history.pushState = g.origPush;
+        history.replaceState = g.origReplace;
+      } catch {}
+
+      window.removeEventListener("popstate", onPop, true);
+      window.removeEventListener("yt-navigate-start", onYtStart, true);
+      window.removeEventListener("yt-navigate-finish", onYtFinish, true);
+      window.removeEventListener("yt-page-data-updated", onPageUpdated, true);
+
+      try {
+        flexyBoot.disconnect();
+      } catch {}
+      clearTimeout(flexyBootTimer);
+
+      if (flexyObserver) {
+        try {
+          flexyObserver.disconnect();
+        } catch {}
+        flexyObserver = null;
+      }
+
+      g.navInstalled = false;
+      g.cleanupNav = null;
+      g.origPush = null;
+      g.origReplace = null;
+    };
   };
 
   // ------------------------------------------------------------
@@ -694,21 +814,36 @@ export const createOrchestrator = () => {
   // chat の pin を開始する（rAF / ResizeObserver / scroll-resize で追随）。
   // “DOMを動かさず” 見た目だけ panel 上に載せるのが狙い。
   let chatPinned = false;
-  let pinRaf = 0;
   let pinRO = null;
   let pinOnScroll = null;
+  let pinOnResize = null;
+  let pinTimer = 0;
+
+  const throttle = (fn, wait = 80) => {
+    let t = 0;
+    let pending = false;
+    return () => {
+      if (!chatPinned) return;
+      const now = Date.now();
+      if (now - t >= wait) {
+        t = now;
+        fn();
+        return;
+      }
+      if (pending) return;
+      pending = true;
+      setTimeout(() => {
+        pending = false;
+        if (!chatPinned) return;
+        t = Date.now();
+        fn();
+      }, wait);
+    };
+  };
 
   const startPinChat = () => {
     if (chatPinned) return;
     chatPinned = true;
-
-    const tick = () => {
-      pinRaf = 0;
-      if (!chatPinned) return;
-      applyPin();
-      pinRaf = requestAnimationFrame(tick);
-    };
-    pinRaf = requestAnimationFrame(tick);
 
     const panelChat = getPanelChat();
     if (panelChat && !pinRO) {
@@ -716,9 +851,16 @@ export const createOrchestrator = () => {
       pinRO.observe(panelChat);
     }
 
-    pinOnScroll = () => applyPin();
+    const onMove = throttle(() => applyPin(), 80);
+    pinOnScroll = onMove;
+    pinOnResize = onMove;
+
     window.addEventListener("scroll", pinOnScroll, true);
-    window.addEventListener("resize", pinOnScroll, true);
+    window.addEventListener("resize", pinOnResize, true);
+    window.visualViewport?.addEventListener?.("resize", pinOnResize, true);
+
+    // 保険：DOMが微妙に動くケース（ヘッダー展開など）対策
+    pinTimer = setInterval(() => applyPin(), 900);
 
     applyPin();
   };
@@ -729,18 +871,22 @@ export const createOrchestrator = () => {
     if (!chatPinned) return;
     chatPinned = false;
 
-    if (pinRaf) {
-      cancelAnimationFrame(pinRaf);
-      pinRaf = 0;
-    }
     if (pinRO) {
       pinRO.disconnect();
       pinRO = null;
     }
     if (pinOnScroll) {
       window.removeEventListener("scroll", pinOnScroll, true);
-      window.removeEventListener("resize", pinOnScroll, true);
       pinOnScroll = null;
+    }
+    if (pinOnResize) {
+      window.removeEventListener("resize", pinOnResize, true);
+      window.visualViewport?.removeEventListener?.("resize", pinOnResize, true);
+      pinOnResize = null;
+    }
+    if (pinTimer) {
+      clearInterval(pinTimer);
+      pinTimer = 0;
     }
 
     const chat = getChatEl();
@@ -773,8 +919,6 @@ export const createOrchestrator = () => {
 
       clickReplayOnceOnChatTab?.();
       startPickSecondChatView();
-
-      syncTabsByContext();
 
       document.documentElement.dataset.yclhActive = name;
     } else {
@@ -833,6 +977,23 @@ export const createOrchestrator = () => {
     if (!panelComments || !panelRelated || !panelPlaylist || !panelChat) {
       return false;
     }
+
+    // DOM移動の前にsigガード
+    const sig = getApplySig();
+    if (sig === lastAppliedSig) {
+      // 既に同条件で適用済みなら、tabsの再同期だけ軽く
+      syncTabsByContext();
+
+      const ctx = detectContext();
+      const active = runtimeState.activePanel || getDefaultPanelByContext(ctx);
+      applyActive(active);
+
+      // playlistも一応
+      dockPlaylistIfExists();
+
+      return true;
+    }
+    lastAppliedSig = sig;
 
     const comments = rememberCommentsOriginal(original);
     const related = rememberRelatedOriginal(original);
@@ -1083,6 +1244,9 @@ export const createOrchestrator = () => {
 
     if (tryApplyOnce()) return;
 
+    // まず gate も動かす（bootWatchが短命でも復帰できる）
+    startReadyGate("apply-failed");
+
     stopBootWatch();
 
     bootObserver = new MutationObserver(() => {
@@ -1095,7 +1259,14 @@ export const createOrchestrator = () => {
       subtree: true,
     });
 
-    bootTimer = setTimeout(() => stopBootWatch(), 4000);
+    bootTimer = setTimeout(() => {
+      stopBootWatch();
+
+      if (!applied) return;
+      if (runtimeState.suspended) return;
+
+      startReadyGate("apply-boot-timeout");
+    }, 4000);
   };
 
   // ------------------------------------------------------------
@@ -1110,6 +1281,7 @@ export const createOrchestrator = () => {
     // soft: theater/narrow など → 「一時停止」なので applied は維持する
     if (hard) applied = false;
 
+    stopReadyGate();
     stopBootWatch();
 
     // chat の overlay/pin を必ず解除
@@ -1138,15 +1310,17 @@ export const createOrchestrator = () => {
 
     // soft/hard 共通：次回のタブ分岐は必ず再計算させたい
     lastCtxSig = "";
+    lastAppliedSig = "";
 
     // hard だけ：動画単位の状態や退避参照を完全リセット
     if (hard) {
+      g.cleanupNav?.();
       replayClickedForVideoId = "";
       resetOriginal();
       stopPlaylistWatch();
       stopEnvWatch();
     } else {
-      startPlaylistWatch();
+      stopPlaylistWatch();
     }
 
     // 最終状態をpopupへ
