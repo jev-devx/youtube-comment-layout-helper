@@ -551,8 +551,6 @@ export const createOrchestrator = () => {
       active = "chat";
     }
 
-    console.log("[YCLH] video type ->", ctx);
-
     // 全消し
     setTabVisible("comments", false);
     setTabVisible("related", false);

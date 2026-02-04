@@ -1,5 +1,3 @@
-// background/serviceWorker.js
-
 const log = {
   warn: (...a) => console.warn("[YCLH][SW]", ...a),
   error: (...a) => console.error("[YCLH][SW]", ...a),
@@ -122,7 +120,7 @@ const updateTabState = async (tabId, url) => {
       imageData: disabled ? ICON_CACHE.disabled : ICON_CACHE.enabled,
     });
   } catch (e) {
-    log.error("setIcon(imageData) failed:", e, { tabId, url, disabled });
+    log.warn("setIcon(imageData) failed:", e, { tabId, url, disabled });
   }
 };
 

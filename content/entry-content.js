@@ -31,12 +31,9 @@ import { createOrchestrator } from "./app/orchestrator/index.js";
 
       // アンビエント効果を無効化する
       applyAmbientFlags();
-
-      console.log("[YCLH] orc.apply() ok", location.href);
     } else {
       orc.restore();
       applyAmbientFlags();
-      console.log("[YCLH] orc.restore() ok", location.href);
     }
     orc.publishRuntime?.(); // popup反映（最終状態をorc側が送る）
   };

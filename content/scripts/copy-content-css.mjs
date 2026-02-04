@@ -18,6 +18,11 @@ import { dirname, resolve } from "node:path";
 const entry = "content/styles/content.css"; // CSS のエントリポイント
 const outFile = "dist/content.css"; // 出力先（insertCSS で使う実体）
 
+const log = {
+  warn: (...a) => console.warn("[YCLH][SW]", ...a),
+  error: (...a) => console.error("[YCLH][SW]", ...a),
+};
+
 /**
  * @import "...";
  * @import url("...");
@@ -67,10 +72,8 @@ try {
 
   // dist/content.css として書き出し
   writeFileSync(outFile, css, "utf8");
-
-  console.log(`[copy+inline] ${entry} -> ${outFile}`);
 } catch (e) {
   // build ステップで失敗したことが分かるように明示的に落とす
-  console.error(`[copy] failed: ${e?.message || e}`);
+  log.error(`[copy] failed: ${e?.message || e}`);
   process.exit(1);
 }
