@@ -1,0 +1,86 @@
+name: "【ユーザー向け】機能リクエスト"
+description: "機能リクエスト用"
+title: "【機能リクエスト】"
+labels: ["enhancement"]
+assignees: []
+
+body:
+  - type: markdown
+    attributes:
+      value: |
+        ご提案ありがとうございます！
+        「なぜ必要か」「どんな場面で使いたいか」がわかると検討しやすくなります。
+
+  - type: textarea
+    id: summary
+    attributes:
+      label: ✨ 機能リクエストの概要
+      description: どんな機能・改善を希望しているかを簡潔に書いてください。
+      placeholder: 例）playlist を常に右側に固定できるオプションがほしい
+    validations:
+      required: true
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: 🎯 解決したい課題 / 困っていること
+      description: その機能が無いことで、どんな点に困っていますか？
+      placeholder: 例）毎回レイアウトを手動で調整する必要があり、操作が煩雑
+    validations:
+      required: true
+
+  - type: checkboxes
+    id: usage_scene
+    attributes:
+      label: 💡 想定する使い方・シーン
+      description: 該当するものがあれば選んでください（複数選択可）。
+      options:
+        - label: 通常動画
+        - label: ライブ配信
+        - label: ライブアーカイブ（チャットリプレイあり）
+        - label: 作業用 / BGM
+        - label: その他
+    validations:
+      required: false
+
+  - type: textarea
+    id: reference
+    attributes:
+      label: 🖼️ 参考イメージ・挙動（あれば）
+      description: 他の拡張、YouTubeのUI、図、文章説明などでもOKです。
+      placeholder: |
+        例）
+        - 他拡張Xでは〜のような挙動
+        - YouTube公式の○○機能に近い
+    validations:
+      required: false
+
+  - type: textarea
+    id: idea
+    attributes:
+      label: 🤔 実装イメージ（任意）
+      description: UIや挙動についてのアイデアがあれば自由に書いてください（空欄でもOK）。
+      placeholder: 例）設定画面にトグルを追加してON/OFFできると嬉しい
+    validations:
+      required: false
+
+  - type: dropdown
+    id: importance
+    attributes:
+      label: 📌 この機能の重要度
+      description: ご自身にとっての重要度を教えてください。
+      options:
+        - 無いとかなり困る
+        - あれば便利
+        - 将来的にあれば嬉しい
+    validations:
+      required: true
+
+  - type: textarea
+    id: notes
+    attributes:
+      label: 📝 補足・その他
+      description: 背景や理由、関連する Issue、注意点などがあれば。
+      placeholder: 例）関連Issue #123 が近いかもしれません
+    validations:
+      required: false

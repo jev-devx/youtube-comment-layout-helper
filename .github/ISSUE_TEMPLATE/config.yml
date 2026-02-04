@@ -1,0 +1,5 @@
+blank_issues_enabled: false
+contact_links:
+  - name: 既存の Issue を確認する
+    url: https://github.com/jev-devx/youtube-comment-layout-helper/issues
+    about: すでに報告されていないか確認してください

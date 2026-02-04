@@ -1,0 +1,168 @@
+name: "【ユーザー向け】不具合報告"
+description: "不具合報告用"
+title: "【不具合報告】"
+labels: ["bug"]
+assignees: []
+
+body:
+  - type: markdown
+    attributes:
+      value: |
+        ありがとうございます！再現と修正のため、以下をできる範囲で埋めてください。
+        ※ 個人情報が含まれる内容（ログイン情報など）は記載しないでください。
+
+  - type: textarea
+    id: summary
+    attributes:
+      label: 🐛 不具合の概要
+      description: どのような不具合が発生したかを簡潔に書いてください。
+      placeholder: 例）コメント欄をサイドパネルに移動すると、初回読み込み時に見切れる
+    validations:
+      required: true
+
+  - type: textarea
+    id: steps
+    attributes:
+      label: 🔁 再現手順
+      description: 再現するための具体的な操作手順を書いてください。
+      placeholder: |
+        1. YouTubeの動画ページを開く
+        2. YCLHをONにする
+        3. コメントタブを開く
+        4. 〜すると見切れる
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: ✅ 期待される挙動
+      description: 本来どうなるべきかを書いてください。
+      placeholder: 例）初回読み込みでもコメントが見切れずに表示される
+    validations:
+      required: true
+
+  - type: textarea
+    id: actual
+    attributes:
+      label: ❌ 実際の挙動
+      description: 実際に起きている挙動を書いてください。
+      placeholder: 例）初回読み込みのみコメントが途中で切れて表示される
+    validations:
+      required: true
+
+  - type: dropdown
+    id: video_type
+    attributes:
+      label: 🎥 発生した動画の種類
+      description: 該当するものを選んでください。
+      options:
+        - 通常動画
+        - ライブ配信
+        - ライブアーカイブ（チャットリプレイあり）
+        - ライブアーカイブ（チャットリプレイなし）
+        - その他
+    validations:
+      required: true
+
+  - type: input
+    id: video_url
+    attributes:
+      label: 🎥 発生した動画URL（可能であれば）
+      description: 再現確認に使います。公開できない場合は空でOKです。
+      placeholder: https://www.youtube.com/watch?v=...
+    validations:
+      required: false
+
+  - type: textarea
+    id: related_text
+    attributes:
+      label: 💬 関連するコメント / チャット内容（あれば）
+      description: 問題が発生したコメントや文言があれば貼ってください（個人情報は伏せてください）。
+      placeholder: 例）「○○」というコメントが表示されるタイミングで崩れる
+    validations:
+      required: false
+
+  - type: dropdown
+    id: os
+    attributes:
+      label: 🖥️ OS
+      options:
+        - Windows
+        - macOS
+        - Linux
+        - ChromeOS
+        - その他
+    validations:
+      required: true
+
+  - type: input
+    id: os_version
+    attributes:
+      label: 🖥️ OSバージョン
+      placeholder: 例）Windows 11 23H2 / macOS 14.3
+    validations:
+      required: false
+
+  - type: dropdown
+    id: browser
+    attributes:
+      label: 🌐 ブラウザ
+      options:
+        - Chrome
+        - Edge
+        - Firefox
+        - Safari
+        - その他
+    validations:
+      required: true
+
+  - type: input
+    id: browser_version
+    attributes:
+      label: 🌐 ブラウザのバージョン
+      placeholder: 例）Chrome 122.0.6261.69
+    validations:
+      required: false
+
+  - type: input
+    id: yclh_version
+    attributes:
+      label: 🧩 YCLH バージョン
+      description: 拡張機能のバージョン（例(:) 1.0.0）。不明なら「不明」でOKです。
+      placeholder: 例）2.1.0
+    validations:
+      required: false
+
+  - type: checkboxes
+    id: affected_area
+    attributes:
+      label: 🧭 影響範囲（該当するものがあれば）
+      description: だいたいでOKです。
+      options:
+        - label: コメント（comments）
+        - label: 関連動画（related）
+        - label: playlist
+        - label: チャット（chat）
+        - label: レイアウト全体（layout）
+        - label: その他
+    validations:
+      required: false
+
+  - type: textarea
+    id: attachments
+    attributes:
+      label: 📎 スクリーンショット / 動画（あれば）
+      description: 画像や動画はここにドラッグ＆ドロップで添付できます。差し支えなければ添付してください。
+      placeholder: 例）スクショを貼る / 画面録画へのリンクを貼る
+    validations:
+      required: false
+
+  - type: textarea
+    id: notes
+    attributes:
+      label: 📝 補足情報
+      description: その他、気になる点・補足があれば書いてください。
+      placeholder: 例）初回読み込みのみ発生、2回目以降は再現しない など
+    validations:
+      required: false
