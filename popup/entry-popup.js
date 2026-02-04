@@ -150,6 +150,15 @@ const renderSettings = (s) => {
   $("moveLeft").checked = !!s.moveLeft;
 
   $("moveLeft").disabled = !s.enabled;
+
+  // chatAutoMode
+  const mode = s.chatAutoMode || "recommended";
+  $("chatAutoRecommended").checked = mode === "recommended";
+  $("chatAutoDefault").checked = mode === "default";
+
+  // enabled=false のとき触れないようにするなら
+  $("chatAutoRecommended").disabled = !s.enabled;
+  $("chatAutoDefault").disabled = !s.enabled;
 };
 
 /* ------------------------------------------------------------
@@ -163,11 +172,23 @@ const bindToggle = (key) => {
   });
 };
 
+const bindRadio = (name, key) => {
+  const els = document.querySelectorAll(`input[type="radio"][name="${name}"]`);
+  els.forEach((el) => {
+    el.addEventListener("change", async (e) => {
+      if (!e.target.checked) return;
+      await saveSettings({ [key]: e.target.value });
+      renderSettings(await loadSettings());
+    });
+  });
+};
+
 const initSettingsUi = async () => {
   renderSettings(await loadSettings());
 
   bindToggle("enabled");
   bindToggle("moveLeft");
+  bindRadio("chatAutoMode", "chatAutoMode");
 
   onSettingsChanged(async () => renderSettings(await loadSettings()));
 

@@ -6,35 +6,35 @@ import {
 } from "../../shared/state.js";
 
 import {
-  rememberCommentsOriginal,
-  restoreCommentsOriginal,
-  rememberRelatedOriginal,
-  restoreRelatedOriginal,
-  rememberPlaylistOriginal,
-  restorePlaylistOriginal,
   rememberChatOriginal,
   restoreChatOriginal,
+  rememberCommentsOriginal,
+  restoreCommentsOriginal,
+  rememberPlaylistOriginal,
+  restorePlaylistOriginal,
+  rememberRelatedOriginal,
+  restoreRelatedOriginal,
 } from "../dom/originals.js";
 
 import {
   canBuildLayoutRoot,
-  ensureLayoutRoot,
   cleanupLayoutRoot,
+  ensureLayoutRoot,
 } from "../dom/layoutRoot.js";
 
 import {
-  ensureSideTabs,
+  cleanupSideUi,
   ensureSidePanels,
-  getPanelComments,
-  getPanelRelated,
-  getPanelPlaylist,
+  ensureSideTabs,
   getPanelChat,
+  getPanelComments,
+  getPanelPlaylist,
+  getPanelRelated,
+  hasTabButton,
   setActivePanel,
   setActiveTab,
-  cleanupSideUi,
   setTabEnabled,
   setTabVisible,
-  hasTabButton,
 } from "../dom/sideRoot.js";
 
 import { createSizing } from "../dom/sizing.js";
@@ -241,6 +241,7 @@ export const createOrchestrator = () => {
 
     return true;
   };
+
   const evaluateEnvAndSync = (from = "") => {
     if (!applied) return;
 
@@ -517,6 +518,12 @@ export const createOrchestrator = () => {
     return { kind: "replay", playlist, hasChat: true };
   };
 
+  // live / replay は chat を初期選択タブとする
+  const getDefaultPanelByContext = (ctx) => {
+    if (ctx.kind === "live" || ctx.kind === "replay") return "chat";
+    return "comments";
+  };
+
   // タブの出し分け
   let lastCtxSig = "";
   const syncTabsByContext = () => {
@@ -534,7 +541,12 @@ export const createOrchestrator = () => {
 
     const preferred = getDefaultPanelByContext(ctx);
     let active = runtimeState.activePanel || preferred;
-    if ((ctx.kind === "live" || ctx.kind === "replay") && active !== "chat") {
+
+    if (
+      isChatAutoRecommended() &&
+      (ctx.kind === "live" || ctx.kind === "replay") &&
+      active !== "chat"
+    ) {
       applyActive("chat");
       active = "chat";
     }
@@ -591,12 +603,6 @@ export const createOrchestrator = () => {
       (activeFinal === "chat" && ctx.hasChat);
 
     if (!activeOk) applyActive(preferred);
-  };
-
-  // live / replay は chat を初期選択タブとする
-  const getDefaultPanelByContext = (ctx) => {
-    if (ctx.kind === "live" || ctx.kind === "replay") return "chat";
-    return "comments";
   };
 
   // ------------------------------------------------------------
@@ -909,6 +915,8 @@ export const createOrchestrator = () => {
   // ------------------------------------------------------------
   // runtimeState と UI の active を同期し、chatタブだけ pin を開始する。
   // CSS側制御のため dataset.yclhActive もここで更新する。
+  const isChatAutoRecommended = () => settings.chatAutoMode !== "default";
+
   const applyActive = (name) => {
     runtimeState.activePanel = name;
     setActivePanel(name);
@@ -917,14 +925,18 @@ export const createOrchestrator = () => {
     if (name === "chat") {
       startPinChat();
 
-      clickReplayOnceOnChatTab?.();
-      startPickSecondChatView();
+      if (isChatAutoRecommended()) {
+        startChatAutoChase();
+      } else {
+        stopPickSecondChatView();
+        stopChatAutoChase();
+      }
 
       document.documentElement.dataset.yclhActive = name;
     } else {
       stopPickSecondChatView();
+      stopChatAutoChase();
       stopPinChat();
-
       delete document.documentElement.dataset.yclhActive;
     }
   };
@@ -948,6 +960,32 @@ export const createOrchestrator = () => {
   const syncMoveLeft = () => {
     if (!applied) return;
     applyMoveLeftFlags();
+  };
+
+  // ------------------------------------------------------------
+  // chatAutoMode sync
+  // ------------------------------------------------------------
+  const getChatFrame = () => document.querySelector("#chatframe");
+
+  const canTouchChat = () => {
+    // iframe (#chatframe) がいる、または chat-container がいる
+    return !!getChatFrame() || !!getChatEl();
+  };
+
+  const syncChatAutoMode = () => {
+    if (!applied) return;
+    if (runtimeState.suspended) return;
+
+    // チャットがまだ無いなら何もしない（タブを開いたら発火する）
+    if (!canTouchChat()) return;
+
+    if (isChatAutoRecommended()) {
+      clickReplayOnceOnChatTab?.();
+      startPickSecondChatView();
+    } else {
+      stopPickSecondChatView();
+      pickFirstChatViewOnce?.();
+    }
   };
 
   // ------------------------------------------------------------
@@ -1028,7 +1066,9 @@ export const createOrchestrator = () => {
     return true;
   };
 
-  // ---- replay auto open: "click as last resort" ----
+  // ------------------------------------------------------------
+  // replay auto open: "click as last resort"
+  // ------------------------------------------------------------
   const getVideoId = () => new URL(location.href).searchParams.get("v") || "";
 
   const findChatReplayButton = () => {
@@ -1073,7 +1113,7 @@ export const createOrchestrator = () => {
   };
 
   // ------------------------------------------------------------
-  // chat view dropdown: open label -> pick 2nd item
+  // chat view dropdown: open label -> pick item
   // ------------------------------------------------------------
   let chatViewTimer = 0;
   let chatViewTries = 0;
@@ -1081,8 +1121,6 @@ export const createOrchestrator = () => {
 
   const CHAT_VIEW_CLICK_COOLDOWN_MS = 1500;
   const CHAT_VIEW_MAX_TRIES = 10;
-
-  const getChatFrame = () => document.querySelector("#chatframe");
 
   const getChatDoc = () => {
     const iframe = getChatFrame();
@@ -1154,6 +1192,7 @@ export const createOrchestrator = () => {
     );
   };
 
+  // 2番目(=index 1)を選択
   const clickSecondItemInMenu = (win, menu) => {
     if (!win || !menu) return false;
 
@@ -1193,6 +1232,42 @@ export const createOrchestrator = () => {
     return true;
   };
 
+  // 1番目(=index 0)を選択
+  const clickNthItemInMenu = (win, menu, n) => {
+    if (!win || !menu) return false;
+
+    const links = Array.from(menu.querySelectorAll("a.yt-simple-endpoint"));
+    if (links.length <= n) return false;
+
+    return dispatchClickInFrame(win, links[n]);
+  };
+
+  const pickFirstChatViewOnce = () => {
+    const doc = getChatDoc();
+    const win = getChatWin();
+    if (!doc || !win) return false;
+
+    const trigger = findTriggerInFrame(doc);
+    if (!trigger) return false;
+
+    const now = Date.now();
+    if (now - lastChatViewPickAt < CHAT_VIEW_CLICK_COOLDOWN_MS) return false;
+    lastChatViewPickAt = now;
+
+    dispatchClickInFrame(win, trigger);
+
+    let innerTries = 0;
+    const tick = () => {
+      innerTries++;
+      const menu = findVisibleMenuInFrame(doc);
+      if (menu && clickNthItemInMenu(win, menu, 0)) return; // 先頭
+      if (innerTries < 6) setTimeout(tick, 120);
+    };
+    setTimeout(tick, 120);
+
+    return true;
+  };
+
   const startPickSecondChatView = () => {
     if (chatViewTimer) return;
     chatViewTries = 0;
@@ -1218,6 +1293,90 @@ export const createOrchestrator = () => {
       clearTimeout(chatViewTimer);
       chatViewTimer = 0;
     }
+  };
+
+  // ------------------------------------------------------------
+  // chat auto: delayed chase (short-lived)
+  // ------------------------------------------------------------
+  let chatChaseObserver = null;
+  let chatChaseTimer = 0;
+  let chatChaseStopTimer = 0;
+  let chatFrameLoadBound = false;
+
+  const startChatAutoChase = () => {
+    if (!applied) return;
+    if (runtimeState.suspended) return;
+    if (!isChatAutoRecommended()) return;
+    if (runtimeState.activePanel !== "chat") return;
+
+    // まず即1回（今の挙動）
+    clickReplayOnceOnChatTab?.();
+    startPickSecondChatView();
+
+    // 既に動いてるなら二重起動しない
+    if (chatChaseObserver || chatChaseTimer) return;
+
+    const kick = () => {
+      if (!applied) return stopChatAutoChase();
+      if (runtimeState.suspended) return stopChatAutoChase();
+      if (!isChatAutoRecommended()) return stopChatAutoChase();
+      if (runtimeState.activePanel !== "chat") return stopChatAutoChase();
+
+      clickReplayOnceOnChatTab?.();
+      startPickSecondChatView();
+    };
+
+    // 1) chatframe を見つけたら iframe load を付ける
+    const bindFrameLoad = () => {
+      const iframe = getChatFrame?.();
+      if (!iframe || chatFrameLoadBound) return;
+
+      chatFrameLoadBound = true;
+      iframe.addEventListener(
+        "load",
+        () => {
+          // load は “刺さる” のでここで確実に追撃
+          kick();
+        },
+        { passive: true },
+      );
+    };
+
+    bindFrameLoad();
+
+    // 2) chatframe / chat-container の出現を短命監視
+    chatChaseObserver = new MutationObserver(() => {
+      bindFrameLoad();
+      // chat DOM が生えたタイミングで追撃
+      if (getChatFrame?.() || getChatEl?.()) kick();
+    });
+
+    chatChaseObserver.observe(document.documentElement, {
+      childList: true,
+      subtree: true,
+    });
+
+    // 3) 保険の低頻度追撃（軽め・短命）
+    chatChaseTimer = setInterval(() => kick(), 900);
+
+    // 4) 永久監視はしない（短命で止める）
+    chatChaseStopTimer = setTimeout(() => stopChatAutoChase(), 6000);
+  };
+
+  const stopChatAutoChase = () => {
+    if (chatChaseObserver) {
+      chatChaseObserver.disconnect();
+      chatChaseObserver = null;
+    }
+    if (chatChaseTimer) {
+      clearInterval(chatChaseTimer);
+      chatChaseTimer = 0;
+    }
+    if (chatChaseStopTimer) {
+      clearTimeout(chatChaseStopTimer);
+      chatChaseStopTimer = 0;
+    }
+    chatFrameLoadBound = false;
   };
 
   // ------------------------------------------------------------
@@ -1327,5 +1486,5 @@ export const createOrchestrator = () => {
     publishRuntime();
   };
 
-  return { apply, restore, syncMoveLeft, publishRuntime };
+  return { apply, restore, syncMoveLeft, syncChatAutoMode, publishRuntime };
 };

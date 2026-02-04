@@ -26,6 +26,9 @@ import { createOrchestrator } from "./app/orchestrator/index.js";
       // enabled 中は moveLeft も毎回反映
       orc.syncMoveLeft();
 
+      // chatAutoMode も毎回整合
+      orc.syncChatAutoMode();
+
       // アンビエント効果を無効化する
       applyAmbientFlags();
 
@@ -57,7 +60,11 @@ import { createOrchestrator } from "./app/orchestrator/index.js";
     // moveLeft 単体は即反映（有効中のみ中で弾く）
     if ("moveLeft" in patch) {
       orc.syncMoveLeft();
-      console.log("[YCLH] orc.syncMoveLeft() ok");
+    }
+
+    // chatAutoMode 単体は即反映（有効中のみ中で弾く）
+    if ("chatAutoMode" in patch) {
+      orc.syncChatAutoMode();
     }
   });
 })();

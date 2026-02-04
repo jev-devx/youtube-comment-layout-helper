@@ -22,32 +22,17 @@
       <main class="main">
         <!-- Enable (top) -->
         <section class="card">
-          <div class="row">
+          <label class="row toggle-row">
             <div class="row-text">
               <div class="row-title">YCLHを有効化する</div>
               <div class="row-desc">コメント欄レイアウトを拡張します</div>
             </div>
 
-            <label class="toggle">
+            <span class="toggle">
               <input id="enabled" type="checkbox" />
               <span class="track" aria-hidden="true"></span>
-            </label>
-          </div>
-
-          <!-- Grouped (indented) -->
-          <!-- <div class="group">
-            <div class="row row--sub">
-              <div class="row-text">
-                <div class="row-title">グループサンプル</div>
-                <div class="row-desc">テキスト</div>
-              </div>
-
-              <label class="toggle">
-                <input id="hoge" type="checkbox" />
-                <span class="track" aria-hidden="true"></span>
-              </label>
-            </div>
-          </div> -->
+            </span>
+          </label>
         </section>
 
         <!-- Options -->
@@ -56,17 +41,68 @@
             <div class="section-title">OPTIONS</div>
           </div>
 
-          <div class="row">
+          <label class="row toggle-row">
             <div class="row-text">
               <div class="row-title">サイドパネルを左に配置</div>
               <div class="row-desc">レイアウトの左右を切り替えます</div>
             </div>
 
-            <label class="toggle">
+            <span class="toggle">
               <input id="moveLeft" type="checkbox" />
               <span class="track" aria-hidden="true"></span>
+            </span>
+          </label>
+
+          <!-- chatAutoRecommended groupe start -->
+          <div class="row">
+            <div class="row-text">
+              <div class="row-title">
+                チャット・チャットのリプレイの表示方法
+              </div>
+            </div>
+          </div>
+          <div class="group">
+            <label class="row row-sub radio-row">
+              <div class="row-text">
+                <div class="row-title">おすすめ</div>
+                <div class="row-desc">
+                  <ul class="row-desc-list">
+                    <li>生配信「チャット」</li>
+                    <li>アーカイブ「上位のチャットのリプレイ」</li>
+                  </ul>
+                  を自動で選択します
+                </div>
+              </div>
+
+              <span class="radio">
+                <input
+                  id="chatAutoRecommended"
+                  name="chatAutoMode"
+                  value="recommended"
+                  type="radio"
+                />
+                <span class="track" aria-hidden="true"></span>
+              </span>
+            </label>
+
+            <label class="row row-sub radio-row">
+              <div class="row-text">
+                <div class="row-title">デフォルト</div>
+                <div class="row-desc">YouTubeの既定の挙動を使用します</div>
+              </div>
+
+              <span class="radio">
+                <input
+                  id="chatAutoDefault"
+                  name="chatAutoMode"
+                  value="default"
+                  type="radio"
+                />
+                <span class="track" aria-hidden="true"></span>
+              </span>
             </label>
           </div>
+          <!-- chatAutoRecommended groupe end -->
         </section>
       </main>
 
