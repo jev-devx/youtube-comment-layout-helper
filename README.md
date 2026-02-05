@@ -94,5 +94,22 @@ YouTube のコメント欄・チャット欄のレイアウトを柔軟に制御
 
 ---
 
-※ This README is written in Japanese.  
+## About this repository
+
+This repository is primarily provided for:
+
+- Bug reports and feature requests
+- Portfolio and reference purposes
+- Privacy policy and documentation hosting
+
+While the source code is publicly visible, it is not intended as a codebase
+to be reused or republished as-is.
+
+If you are interested in implementation details, please treat this repository
+as a reference rather than a template.
+
+---
+
+This README is written in Japanese.  
+Policies and license are provided in English for review and legal clarity.  
 Please translate if necessary.
