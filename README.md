@@ -9,6 +9,11 @@ YouTube のコメント欄・チャット欄のレイアウトを柔軟に制御
 
 といった不満を解消することを目的としています。
 
+## ● 配布先
+
+Chrome ウェブストア  
+https://chromewebstore.google.com/detail/yclh-youtube-comment-layo/ndckhbgnedigjlcncnjbnnapimhcmajd
+
 ## ● ディレクトリ構成
 
 ```text
@@ -113,3 +118,4 @@ as a reference rather than a template.
 This README is written in Japanese.  
 Policies and license are provided in English for review and legal clarity.  
 Please translate if necessary.
+
