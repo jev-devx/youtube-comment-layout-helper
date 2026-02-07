@@ -213,6 +213,18 @@ a:focus {
   color: var(--muted);
 }
 
+.row-meta {
+  flex: 0 0 auto;
+  font-size: 11px;
+  color: var(--muted);
+
+  padding: 6px 10px;
+  border-radius: 999px;
+
+  background: color-mix(in srgb, var(--gray) 6%, transparent);
+  border: 1px solid color-mix(in srgb, var(--gray) 10%, transparent);
+}
+
 .group {
   margin: 0 12px 12px;
   border: 1px solid color-mix(in srgb, var(--gray) 10%, transparent);
@@ -232,6 +244,205 @@ a:focus {
 
 .row-sub .row-desc {
   font-size: 10.5px;
+}
+
+/* =========================================================
+  Tabs
+========================================================= */
+
+.tabs {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+
+.tab {
+  appearance: none;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: 9px 10px;
+
+  background: color-mix(in srgb, var(--gray) 6%, transparent);
+  color: var(--muted);
+
+  font: inherit;
+  font-weight: 700;
+  letter-spacing: 0.2px;
+
+  cursor: pointer;
+  user-select: none;
+  transition: 140ms ease;
+
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 34px;
+}
+
+.tab:hover {
+  background: color-mix(in srgb, var(--gray) 9%, transparent);
+  color: var(--text);
+}
+
+.tab[aria-selected="true"] {
+  color: var(--text);
+  border-color: var(--accent-border);
+  background: color-mix(in srgb, var(--accent) 16%, transparent);
+}
+
+.tab:focus-visible {
+  outline: 2px solid var(--accent-ring);
+  outline-offset: 2px;
+}
+
+/* タブパネルは“中で”縦に積む（カード同士の gap を維持） */
+.tabPanel {
+  display: grid;
+  gap: 10px;
+}
+
+/* 非表示 */
+.tabPanel[hidden] {
+  display: none !important;
+}
+
+/* =========================================================
+  Mute UI
+========================================================= */
+
+.muteList {
+  padding: 0 12px 12px;
+  display: grid;
+  gap: 10px;
+}
+
+.muteItem {
+  border: 1px solid color-mix(in srgb, var(--gray) 10%, transparent);
+  background: color-mix(in srgb, #000 18%, transparent);
+  border-radius: var(--radius2);
+  overflow: hidden;
+}
+
+.muteItem__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 10px;
+  border-bottom: 1px solid color-mix(in srgb, var(--gray) 10%, transparent);
+}
+
+.muteItem__left {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 10px;
+  min-width: 0;
+}
+
+.muteItem__label {
+  font-size: 11px;
+  color: var(--muted2);
+  white-space: nowrap;
+}
+
+.muteItem__mode {
+  font-size: 12px;
+  font-weight: 750;
+  color: var(--text);
+  white-space: nowrap;
+}
+
+.muteItem__actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.iconBtn {
+  appearance: none;
+  border: 1px solid color-mix(in srgb, var(--gray) 12%, transparent);
+  background: color-mix(in srgb, var(--gray) 6%, transparent);
+  color: var(--text);
+  border-radius: 999px;
+  width: 34px;
+  height: 34px;
+  display: inline-grid;
+  place-items: center;
+  cursor: pointer;
+  transition: 140ms ease;
+}
+
+.iconBtn:hover {
+  background: color-mix(in srgb, var(--gray) 10%, transparent);
+  transform: translateY(-1px);
+}
+
+.iconBtn:active {
+  transform: translateY(0px);
+}
+
+.iconBtn:focus-visible {
+  outline: 2px solid var(--accent-ring);
+  outline-offset: 2px;
+}
+
+.iconBtn--danger {
+  border-color: color-mix(in srgb, var(--accent) 22%, transparent);
+  background: color-mix(in srgb, var(--accent) 10%, transparent);
+}
+
+.muteItem__body {
+  padding: 10px;
+}
+
+.textInput {
+  width: 100%;
+  height: 36px;
+  padding: 0 10px;
+
+  border-radius: 10px;
+  border: 1px solid color-mix(in srgb, var(--gray) 14%, transparent);
+  background: color-mix(in srgb, #000 22%, transparent);
+  color: var(--text);
+
+  font: inherit;
+}
+
+.textInput::placeholder {
+  color: var(--muted2);
+}
+
+.textInput:focus-visible {
+  outline: 2px solid var(--accent-ring);
+  outline-offset: 2px;
+}
+
+.textInputWrap {
+  position: relative;
+}
+
+.textCounter {
+  position: absolute;
+  right: 8px;
+  bottom: 6px;
+
+  font-size: 10px;
+  color: var(--muted2);
+  pointer-events: none;
+}
+
+.textCounter.is-max {
+  color: var(--accent);
+  font-weight: 700;
+}
+
+.btn--add {
+  width: 100%;
+}
+
+.infoBanner--mute {
+  margin: 10px 12px 0;
 }
 
 /* =========================================================
@@ -319,6 +530,11 @@ a:focus {
   cursor: pointer;
   user-select: none;
   transition: 140ms ease;
+}
+
+.btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
 }
 
 .btn--ghost {

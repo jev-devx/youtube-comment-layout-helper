@@ -7,12 +7,13 @@
   </head>
   <body>
     <div class="app">
+      <!-- header -->
       <header class="header">
         <div class="title">YCLH</div>
         <div class="subtitle">YouTube Comment Layout Helper</div>
       </header>
 
-      <!-- ★ Info banner (YouTube以外など “操作はできる” 状態用) -->
+      <!-- Info banner -->
       <div id="infoBanner" class="infoBanner" hidden>
         <div class="infoBanner__warn" aria-hidden="true">⚠️</div>
         <div class="infoBanner__text" id="infoBannerText"></div>
@@ -20,89 +21,213 @@
 
       <!-- Main -->
       <main class="main">
-        <!-- Enable (top) -->
-        <section class="card">
-          <label class="row toggle-row">
-            <div class="row-text">
-              <div class="row-title">YCLHを有効化する</div>
-              <div class="row-desc">コメント欄レイアウトを拡張します</div>
-            </div>
+        <!-- Tabs -->
+        <nav class="tabs" role="tablist" aria-label="Popup tabs">
+          <button
+            id="tabLayout"
+            class="tab"
+            type="button"
+            role="tab"
+            aria-selected="true"
+            aria-controls="panelLayout"
+          >
+            メイン
+          </button>
 
-            <span class="toggle">
-              <input id="enabled" type="checkbox" />
-              <span class="track" aria-hidden="true"></span>
-            </span>
-          </label>
-        </section>
+          <button
+            id="tabMute"
+            class="tab"
+            type="button"
+            role="tab"
+            aria-selected="false"
+            aria-controls="panelMute"
+            tabindex="-1"
+          >
+            ミュート
+          </button>
+        </nav>
 
-        <!-- Options -->
-        <section class="card">
-          <div class="section-head">
-            <div class="section-title">OPTIONS</div>
-          </div>
-
-          <label class="row toggle-row">
-            <div class="row-text">
-              <div class="row-title">サイドパネルを左に配置</div>
-              <div class="row-desc">レイアウトの左右を切り替えます</div>
-            </div>
-
-            <span class="toggle">
-              <input id="moveLeft" type="checkbox" />
-              <span class="track" aria-hidden="true"></span>
-            </span>
-          </label>
-
-          <!-- chatAutoRecommended groupe start -->
-          <div class="row">
-            <div class="row-text">
-              <div class="row-title">
-                チャット・チャットのリプレイの表示方法
-              </div>
-            </div>
-          </div>
-          <div class="group">
-            <label class="row row-sub radio-row">
+        <!-- Panel: Layout -->
+        <section
+          id="panelLayout"
+          class="tabPanel"
+          role="tabpanel"
+          aria-labelledby="tabLayout"
+        >
+          <!-- Enable (top) -->
+          <section class="card">
+            <label class="row toggle-row">
               <div class="row-text">
-                <div class="row-title">おすすめ</div>
-                <div class="row-desc">
-                  <ul class="row-desc-list">
-                    <li>生配信「チャット」</li>
-                    <li>アーカイブ「上位のチャットのリプレイ」</li>
-                  </ul>
-                  を自動で選択します
+                <div class="row-title">YCLHを有効化する</div>
+                <div class="row-desc">コメント欄レイアウトを拡張します</div>
+              </div>
+
+              <span class="toggle">
+                <input id="enabled" type="checkbox" />
+                <span class="track" aria-hidden="true"></span>
+              </span>
+            </label>
+          </section>
+
+          <!-- Options -->
+          <section class="card">
+            <div class="section-head">
+              <div class="section-title">OPTIONS</div>
+            </div>
+
+            <label class="row toggle-row">
+              <div class="row-text">
+                <div class="row-title">サイドパネルを左に配置</div>
+                <div class="row-desc">レイアウトの左右を切り替えます</div>
+              </div>
+
+              <span class="toggle">
+                <input id="moveLeft" type="checkbox" />
+                <span class="track" aria-hidden="true"></span>
+              </span>
+            </label>
+
+            <!-- chatAutoRecommended groupe start -->
+            <div class="row">
+              <div class="row-text">
+                <div class="row-title">
+                  チャット・チャットのリプレイの表示方法
                 </div>
               </div>
+            </div>
+            <div class="group">
+              <label class="row row-sub radio-row">
+                <div class="row-text">
+                  <div class="row-title">おすすめ</div>
+                  <div class="row-desc">
+                    <ul class="row-desc-list">
+                      <li>生配信「チャット」</li>
+                      <li>アーカイブ「上位のチャットのリプレイ」</li>
+                    </ul>
+                    を自動で選択します
+                  </div>
+                </div>
 
-              <span class="radio">
-                <input
-                  id="chatAutoRecommended"
-                  name="chatAutoMode"
-                  value="recommended"
-                  type="radio"
-                />
-                <span class="track" aria-hidden="true"></span>
-              </span>
-            </label>
+                <span class="radio">
+                  <input
+                    id="chatAutoRecommended"
+                    name="chatAutoMode"
+                    value="recommended"
+                    type="radio"
+                  />
+                  <span class="track" aria-hidden="true"></span>
+                </span>
+              </label>
 
-            <label class="row row-sub radio-row">
+              <label class="row row-sub radio-row">
+                <div class="row-text">
+                  <div class="row-title">デフォルト</div>
+                  <div class="row-desc">YouTubeの既定の挙動を使用します</div>
+                </div>
+
+                <span class="radio">
+                  <input
+                    id="chatAutoDefault"
+                    name="chatAutoMode"
+                    value="default"
+                    type="radio"
+                  />
+                  <span class="track" aria-hidden="true"></span>
+                </span>
+              </label>
+            </div>
+            <!-- chatAutoRecommended groupe end -->
+          </section>
+        </section>
+
+        <!-- Panel: Mute -->
+        <section
+          id="panelMute"
+          class="tabPanel"
+          role="tabpanel"
+          aria-labelledby="tabMute"
+          hidden
+        >
+          <section class="card">
+            <div class="section-head">
+              <div class="section-title">WORD MUTE</div>
+            </div>
+
+            <!-- Mute banner (YCLH OFF のときだけ表示) -->
+            <div id="muteBanner" class="infoBanner infoBanner--mute" hidden>
+              <div class="infoBanner__warn" aria-hidden="true">🫠</div>
+              <div class="infoBanner__text" id="muteBannerText"></div>
+            </div>
+
+            <div class="row">
               <div class="row-text">
-                <div class="row-title">デフォルト</div>
-                <div class="row-desc">YouTubeの既定の挙動を使用します</div>
+                <div class="row-title">ワードミュート</div>
+                <div class="row-desc">
+                  ミュートワードが含まれるコメントを置換します
+                </div>
               </div>
+            </div>
 
-              <span class="radio">
-                <input
-                  id="chatAutoDefault"
-                  name="chatAutoMode"
-                  value="default"
-                  type="radio"
-                />
-                <span class="track" aria-hidden="true"></span>
-              </span>
-            </label>
-          </div>
-          <!-- chatAutoRecommended groupe end -->
+            <!-- Replace preset -->
+            <div class="row">
+              <div class="row-text">
+                <div class="row-title">置換設定</div>
+              </div>
+            </div>
+            <div class="group" id="replacePresetGroup">
+              <label class="row row-sub radio-row">
+                <div class="row-text">
+                  <div class="row-title">ミュートワードが含まれています</div>
+                </div>
+                <span class="radio">
+                  <input
+                    id="replacePresetDefault"
+                    name="replacePreset"
+                    value="default"
+                    type="radio"
+                    checked
+                  />
+                  <span class="track" aria-hidden="true"></span>
+                </span>
+              </label>
+              <label class="row row-sub radio-row">
+                <div class="row-text">
+                  <div class="row-title">にゃーん</div>
+                </div>
+                <span class="radio">
+                  <input
+                    id="replacePresetNyan"
+                    name="replacePreset"
+                    value="nyan"
+                    type="radio"
+                  />
+                  <span class="track" aria-hidden="true"></span>
+                </span>
+              </label>
+            </div>
+
+            <!-- list -->
+            <div class="row">
+              <div class="row-text">
+                <div class="row-title">ミュートリスト</div>
+              </div>
+              <div id="muteCount" class="row-meta" aria-label="mute count">
+                0/15
+              </div>
+            </div>
+            <div id="muteList" class="muteList"></div>
+
+            <!-- add -->
+            <div class="row">
+              <button
+                id="muteAdd"
+                class="btn btn--ghost btn--add"
+                type="button"
+              >
+                ＋ 追加
+              </button>
+            </div>
+          </section>
         </section>
       </main>
 

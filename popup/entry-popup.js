@@ -159,6 +159,13 @@ const renderSettings = (s) => {
   // enabled=false のとき触れないようにするなら
   $("chatAutoRecommended").disabled = !s.enabled;
   $("chatAutoDefault").disabled = !s.enabled;
+
+  // mute banner
+  if (muteBannerEl && muteBannerTextEl) {
+    const show = !s.enabled;
+    muteBannerEl.hidden = !show;
+    muteBannerTextEl.textContent = show ? MSG_MUTE.REQUIRE_ENABLE : "";
+  }
 };
 
 /* ------------------------------------------------------------
@@ -257,9 +264,272 @@ const watchRuntimeChanges = () => {
 };
 
 /* ------------------------------------------------------------
+ * tabs（popup local UI）
+ * ---------------------------------------------------------- */
+
+const TAB = {
+  LAYOUT: "layout",
+  MUTE: "mute",
+};
+
+const tabButtons = {
+  [TAB.LAYOUT]: $("tabLayout"),
+  [TAB.MUTE]: $("tabMute"),
+};
+
+const tabPanels = {
+  [TAB.LAYOUT]: $("panelLayout"),
+  [TAB.MUTE]: $("panelMute"),
+};
+
+let activeTab = TAB.LAYOUT;
+
+const applyTabUi = (next) => {
+  activeTab = next;
+
+  Object.entries(tabButtons).forEach(([key, btn]) => {
+    const selected = key === next;
+    btn.setAttribute("aria-selected", selected ? "true" : "false");
+    btn.tabIndex = selected ? 0 : -1;
+  });
+
+  Object.entries(tabPanels).forEach(([key, panel]) => {
+    panel.hidden = key !== next;
+  });
+};
+
+const bindTabs = () => {
+  Object.entries(tabButtons).forEach(([key, btn]) => {
+    btn.addEventListener("click", () => applyTabUi(key));
+  });
+
+  // キーボード操作（左右で移動）
+  const order = [TAB.LAYOUT, TAB.MUTE];
+  const move = (dir) => {
+    const idx = order.indexOf(activeTab);
+    const next = order[(idx + dir + order.length) % order.length];
+    applyTabUi(next);
+    tabButtons[next].focus();
+  };
+
+  Object.values(tabButtons).forEach((btn) => {
+    btn.addEventListener("keydown", (e) => {
+      if (e.key === "ArrowLeft") {
+        e.preventDefault();
+        move(-1);
+      }
+      if (e.key === "ArrowRight") {
+        e.preventDefault();
+        move(1);
+      }
+    });
+  });
+};
+
+/* ------------------------------------------------------------
+ * mute UI (popup local UI only - step1 expected)
+ * ---------------------------------------------------------- */
+
+const muteEls = {
+  list: $("muteList"),
+  add: $("muteAdd"),
+  presetDefault: $("replacePresetDefault"),
+  presetNyan: $("replacePresetNyan"),
+};
+
+const PRESET = {
+  default: "ミュートワードが含まれています",
+  nyan: "にゃーん",
+};
+
+// UUID 生成（保険付き）
+const genId = () =>
+  crypto.randomUUID
+    ? crypto.randomUUID()
+    : `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+
+// local state (step1)
+let muteState = {
+  preset: "default", // 'default' | 'nyan'
+  items: [
+    { id: genId(), exact: false, word: "" }, // exact=false => 部分一致
+  ],
+};
+
+const clampText = (v, max = 10) => (v || "").slice(0, max);
+const muteCountEl = $("muteCount");
+const MUTE_LIMIT = 15;
+
+const renderMute = () => {
+  // preset radios
+  muteEls.presetDefault.checked = muteState.preset === "default";
+  muteEls.presetNyan.checked = muteState.preset === "nyan";
+
+  // count + add enable (←ここで1回だけ)
+  if (muteCountEl) {
+    muteCountEl.textContent = `${muteState.items.length}/${MUTE_LIMIT}`;
+  }
+  if (muteEls.add) {
+    muteEls.add.disabled = muteState.items.length >= MUTE_LIMIT;
+  }
+
+  // list
+  const root = muteEls.list;
+  root.innerHTML = "";
+
+  muteState.items.forEach((item) => {
+    const el = document.createElement("div");
+    el.className = "muteItem";
+    el.dataset.id = item.id;
+
+    const modeValue = item.exact ? "完全一致" : "部分一致";
+
+    el.innerHTML = `
+      <div class="muteItem__head">
+        <div class="muteItem__left">
+          <span class="muteItem__label">一致</span>
+          <span class="muteItem__mode">${modeValue}</span>
+        </div>
+
+        <div class="muteItem__actions">
+          <button class="iconBtn" type="button" data-action="toggleExact" aria-label="一致モード切替">
+            ⇆
+          </button>
+          <button class="iconBtn iconBtn--danger" type="button" data-action="remove" aria-label="削除">
+            ✕
+          </button>
+        </div>
+      </div>
+
+      <div class="muteItem__body">
+        <div class="textInputWrap">
+          <input
+            class="textInput"
+            type="text"
+            inputmode="text"
+            maxlength="${MUTE_LIMIT}"
+            placeholder="ミュートワード（最大${MUTE_LIMIT}文字）"
+            value="${escapeHtml(item.word)}"
+            data-field="word"
+          />
+          <div class="textCounter" aria-hidden="true"></div>
+        </div>
+      </div>
+    `;
+
+    const input = el.querySelector(".textInput");
+    const wrap = el.querySelector(".textInputWrap");
+    if (input && wrap) {
+      updateCounter(wrap, item.word);
+    }
+
+    el.addEventListener("click", (e) => {
+      const btn = e.target.closest("button");
+      if (!btn) return;
+
+      const action = btn.dataset.action;
+
+      if (action === "remove") {
+        muteState.items = muteState.items.filter((x) => x.id !== item.id);
+        if (muteState.items.length === 0) {
+          muteState.items = [{ id: genId(), exact: false, word: "" }];
+        }
+        renderMute();
+        return;
+      }
+
+      if (action === "toggleExact") {
+        item.exact = !item.exact;
+        renderMute();
+        return;
+      }
+    });
+
+    el.addEventListener("input", (e) => {
+      const input = e.target;
+      if (!(input instanceof HTMLInputElement)) return;
+
+      if (input.dataset.field !== "word") return;
+
+      item.word = clampText(input.value, MUTE_LIMIT);
+      if (input.value !== item.word) input.value = item.word;
+
+      const wrap = input.closest(".textInputWrap");
+      if (wrap) {
+        updateCounter(wrap, item.word);
+      }
+    });
+
+    root.appendChild(el);
+  });
+};
+
+const updateCounter = (wrap, value) => {
+  const counter = wrap.querySelector(".textCounter");
+  if (!counter) return;
+
+  const len = value.length;
+  counter.textContent = `${len}/${MUTE_LIMIT}`;
+  counter.classList.toggle("is-max", len >= MUTE_LIMIT);
+};
+
+const bindMuteUi = () => {
+  // preset
+  const onPreset = (value) => {
+    muteState.preset = value;
+    renderMute();
+  };
+
+  muteEls.presetDefault.addEventListener("change", (e) => {
+    if (e.target.checked) onPreset("default");
+  });
+  muteEls.presetNyan.addEventListener("change", (e) => {
+    if (e.target.checked) onPreset("nyan");
+  });
+
+  // add
+  muteEls.add.addEventListener("click", () => {
+    if (muteState.items.length >= MUTE_LIMIT) return;
+    muteState.items.push({
+      id: genId(),
+      exact: false,
+      word: "",
+    });
+    renderMute();
+  });
+
+  // initial
+  renderMute();
+};
+
+// XSS対策（popup内でも一応）
+function escapeHtml(str) {
+  return String(str ?? "")
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&#039;");
+}
+
+const muteBannerEl = $("muteBanner");
+const muteBannerTextEl = $("muteBannerText");
+
+const MSG_MUTE = {
+  REQUIRE_ENABLE:
+    "設定は保存できます。適用するには「YCLHを有効化」をONにしてください",
+};
+
+/* ------------------------------------------------------------
  * 起動シーケンス
  * ---------------------------------------------------------- */
 resetStatusUi();
+
+bindTabs();
+applyTabUi(TAB.LAYOUT);
+
+bindMuteUi();
+
 await initSettingsUi();
 await renderRuntimeForActiveTab();
 watchRuntimeChanges();
