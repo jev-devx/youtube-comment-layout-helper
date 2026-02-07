@@ -197,7 +197,24 @@ const initSettingsUi = async () => {
   bindToggle("moveLeft");
   bindRadio("chatAutoMode", "chatAutoMode");
 
-  onSettingsChanged(async () => renderSettings(await loadSettings()));
+  onSettingsChanged(async (patch) => {
+    const s = await loadSettings();
+    renderSettings(s);
+
+    // wordMute 以外の変更なら何もしない/または必要に応じて
+    if (!("wordMute" in patch)) return;
+
+    // wordMute は「入力中に再描画するとフォーカスが飛ぶ」のでガードする
+    const ae = document.activeElement;
+    const isTyping =
+      ae instanceof HTMLInputElement && ae.classList.contains("textInput");
+
+    if (isTyping) return; // 入力中は何もしない
+
+    // 入力中じゃないなら同期反映してOK
+    muteState = normalizeWordMute(s.wordMute);
+    renderMute();
+  });
 
   $("reset").addEventListener("click", async () => {
     await saveSettings(DEFAULT_SETTINGS);
@@ -342,11 +359,36 @@ const PRESET = {
   nyan: "にゃーん",
 };
 
+const MUTE_LIMIT = 15;
+const WORD_LIMIT = 15;
+
+const clampText = (v, max) => (v || "").slice(0, max);
+
 // UUID 生成（保険付き）
 const genId = () =>
   crypto.randomUUID
     ? crypto.randomUUID()
     : `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+
+// settings から来た値を “安全な形” に整形
+const normalizeWordMute = (wm) => {
+  const preset = wm?.preset === "nyan" ? "nyan" : "default";
+
+  const itemsRaw = Array.isArray(wm?.items) ? wm.items : [];
+  let items = itemsRaw.map((x) => ({
+    id: typeof x?.id === "string" && x.id ? x.id : genId(),
+    exact: !!x?.exact,
+    word: clampText(x?.word ?? "", WORD_LIMIT),
+  }));
+
+  // 0件は作らない
+  if (items.length === 0) items = [{ id: genId(), exact: false, word: "" }];
+
+  // 上限
+  if (items.length > MUTE_LIMIT) items = items.slice(0, MUTE_LIMIT);
+
+  return { preset, items };
+};
 
 // local state (step1)
 let muteState = {
@@ -356,9 +398,12 @@ let muteState = {
   ],
 };
 
-const clampText = (v, max = 10) => (v || "").slice(0, max);
+const saveMuteState = async () => {
+  // settings の 1キーとして保存
+  await saveSettings({ wordMute: muteState });
+};
+
 const muteCountEl = $("muteCount");
-const MUTE_LIMIT = 15;
 
 const renderMute = () => {
   // preset radios
@@ -407,8 +452,8 @@ const renderMute = () => {
             class="textInput"
             type="text"
             inputmode="text"
-            maxlength="${MUTE_LIMIT}"
-            placeholder="ミュートワード（最大${MUTE_LIMIT}文字）"
+            maxlength="${WORD_LIMIT}"
+            placeholder="ミュートワード（最大${WORD_LIMIT}文字）"
             value="${escapeHtml(item.word)}"
             data-field="word"
           />
@@ -423,7 +468,7 @@ const renderMute = () => {
       updateCounter(wrap, item.word);
     }
 
-    el.addEventListener("click", (e) => {
+    el.addEventListener("click", async (e) => {
       const btn = e.target.closest("button");
       if (!btn) return;
 
@@ -435,12 +480,18 @@ const renderMute = () => {
           muteState.items = [{ id: genId(), exact: false, word: "" }];
         }
         renderMute();
+        markMuteDirty();
+        scheduleSaveMute();
+
         return;
       }
 
       if (action === "toggleExact") {
         item.exact = !item.exact;
         renderMute();
+        markMuteDirty();
+        scheduleSaveMute();
+
         return;
       }
     });
@@ -451,13 +502,16 @@ const renderMute = () => {
 
       if (input.dataset.field !== "word") return;
 
-      item.word = clampText(input.value, MUTE_LIMIT);
+      item.word = clampText(input.value, WORD_LIMIT);
       if (input.value !== item.word) input.value = item.word;
 
       const wrap = input.closest(".textInputWrap");
       if (wrap) {
         updateCounter(wrap, item.word);
       }
+
+      markMuteDirty();
+      scheduleSaveMute();
     });
 
     root.appendChild(el);
@@ -469,15 +523,21 @@ const updateCounter = (wrap, value) => {
   if (!counter) return;
 
   const len = value.length;
-  counter.textContent = `${len}/${MUTE_LIMIT}`;
-  counter.classList.toggle("is-max", len >= MUTE_LIMIT);
+  counter.textContent = `${len}/${WORD_LIMIT}`;
+  counter.classList.toggle("is-max", len >= WORD_LIMIT);
 };
 
-const bindMuteUi = () => {
+const bindMuteUi = async () => {
+  // 初期ロード（sync → muteState）
+  const s = await loadSettings();
+  muteState = normalizeWordMute(s.wordMute);
+
   // preset
-  const onPreset = (value) => {
+  const onPreset = async (value) => {
     muteState.preset = value;
     renderMute();
+    markMuteDirty();
+    scheduleSaveMute();
   };
 
   muteEls.presetDefault.addEventListener("change", (e) => {
@@ -488,7 +548,7 @@ const bindMuteUi = () => {
   });
 
   // add
-  muteEls.add.addEventListener("click", () => {
+  muteEls.add.addEventListener("click", async () => {
     if (muteState.items.length >= MUTE_LIMIT) return;
     muteState.items.push({
       id: genId(),
@@ -496,10 +556,32 @@ const bindMuteUi = () => {
       word: "",
     });
     renderMute();
+
+    markMuteDirty();
+    scheduleSaveMute();
   });
 
   // initial
   renderMute();
+};
+
+let muteSaveTimer = 0;
+let muteDirty = false;
+
+const markMuteDirty = () => (muteDirty = true);
+
+const flushMuteSave = async () => {
+  clearTimeout(muteSaveTimer);
+  muteSaveTimer = 0;
+
+  if (!muteDirty) return; // 変更なしなら保存しない
+  muteDirty = false;
+
+  await saveMuteState();
+};
+const scheduleSaveMute = () => {
+  clearTimeout(muteSaveTimer);
+  muteSaveTimer = setTimeout(() => flushMuteSave().catch(() => {}), 200);
 };
 
 // XSS対策（popup内でも一応）
@@ -517,7 +599,30 @@ const muteBannerTextEl = $("muteBannerText");
 
 const MSG_MUTE = {
   REQUIRE_ENABLE:
-    "設定は保存できます。適用するには「YCLHを有効化」をONにしてください",
+    "適用するには「YCLHを有効化」をONにしてください\nOFFの状態でも設定は保存できます",
+};
+
+const bindCloseFlush = () => {
+  const flush = async () => {
+    try {
+      await flushMuteSave();
+    } catch {}
+  };
+
+  // popup が閉じられるとき
+  document.addEventListener("visibilitychange", () => {
+    if (document.hidden) {
+      flushMuteSave().catch(() => {});
+    }
+  });
+
+  // 入力欄から離れたとき（自然なタイミングだけ）
+  document.addEventListener("focusout", (e) => {
+    const t = e.target;
+    if (t instanceof HTMLInputElement && t.classList.contains("textInput")) {
+      flush();
+    }
+  });
 };
 
 /* ------------------------------------------------------------
@@ -528,7 +633,9 @@ resetStatusUi();
 bindTabs();
 applyTabUi(TAB.LAYOUT);
 
-bindMuteUi();
+await bindMuteUi();
+
+bindCloseFlush();
 
 await initSettingsUi();
 await renderRuntimeForActiveTab();

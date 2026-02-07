@@ -815,6 +815,7 @@ a:focus {
   font-size: 11px;
   color: var(--muted);
   line-height: 1.45;
+  white-space: pre-line;
 }
 
 /* =========================================================
