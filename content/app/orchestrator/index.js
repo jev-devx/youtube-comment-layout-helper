@@ -1132,7 +1132,7 @@ export const createOrchestrator = () => {
         (doc.head || doc.documentElement).appendChild(style);
       }
 
-      // ★ ここは「上書き」して常に同じ中身にする（古い定義が残らない）
+      // ここは「上書き」して常に同じ中身にする（古い定義が残らない）
       style.textContent = `
       .yclh-mute-hit {
         background: #ff3b30 !important;
@@ -1407,6 +1407,7 @@ export const createOrchestrator = () => {
         () => {
           // load は “刺さる” のでここで確実に追撃
           kick();
+          startWordMuteTooltipChat();
         },
         { passive: true },
       );
@@ -1452,6 +1453,7 @@ export const createOrchestrator = () => {
   // ------------------------------------------------------------
   // word mute
   // ------------------------------------------------------------
+
   const WORD_MUTE_PRESET_TEXT = {
     default: "ミュートワードが含まれています",
     nyan: "にゃーん",
@@ -1499,10 +1501,31 @@ export const createOrchestrator = () => {
     return { rules, replaceText, includeChat, isHit };
   };
 
+  const htmlToTextKeepingEmojiAlt = (html) => {
+    const tmp = document.createElement("div");
+    tmp.innerHTML = html || "";
+
+    // YouTube絵文字は img の alt に入ってることが多い
+    tmp.querySelectorAll("img").forEach((img) => {
+      const alt = img.getAttribute("alt") || "";
+      img.replaceWith(document.createTextNode(alt));
+    });
+
+    return (tmp.textContent || "").trim();
+  };
+
+  const getBaseTextForMatch = (el) => {
+    // すでに退避済みならHTMLから復元したテキストを優先
+    if (el.dataset.yclhMuteOrigHtml != null) {
+      return htmlToTextKeepingEmojiAlt(el.dataset.yclhMuteOrigHtml);
+    }
+    return (el.textContent || "").trim();
+  };
+
   const applyWordMuteToTextNode = (el, isHit, replaceText, sig) => {
     if (!el) return;
 
-    // ★ DOM再利用検知：sigが変わったら、前の退避を破棄してクリーン状態にする
+    // DOM再利用検知：sigが変わったら、前の退避を破棄してクリーン状態にする
     const prevSig = el.dataset.yclhMuteSig || "";
     if (prevSig && sig && prevSig !== sig) {
       // もし前の要素でミュートしてたなら復元してから情報を捨てる
@@ -1514,14 +1537,14 @@ export const createOrchestrator = () => {
       delete el.dataset.yclhMuted;
       delete el.dataset.yclhMuteOrigHtml;
       delete el.dataset.yclhMuteOrigText;
+      delete el.dataset.yclhMutePreview;
     }
     if (sig) el.dataset.yclhMuteSig = sig;
 
-    // ★ 判定は「元テキスト」でやる（置換後の文言で誤判定しない）
     const baseText =
       el.dataset.yclhMuteOrigText != null
         ? el.dataset.yclhMuteOrigText
-        : (el.textContent || "").trim();
+        : getBaseTextForMatch(el);
 
     const hit = isHit(baseText);
 
@@ -1529,8 +1552,14 @@ export const createOrchestrator = () => {
       // 初回だけ退避
       if (el.dataset.yclhMuteOrigHtml == null) {
         el.dataset.yclhMuteOrigHtml = el.innerHTML;
-        el.dataset.yclhMuteOrigText = baseText;
+        el.dataset.yclhMuteOrigText = htmlToTextKeepingEmojiAlt(
+          el.dataset.yclhMuteOrigHtml,
+        );
       }
+
+      // hover用
+      el.dataset.yclhMutePreview = el.dataset.yclhMuteOrigText;
+      el.removeAttribute("title");
 
       // すでに置換済みなら無駄に触らない（ちらつき防止）
       if (
@@ -1555,6 +1584,7 @@ export const createOrchestrator = () => {
     delete el.dataset.yclhMuted;
     delete el.dataset.yclhMuteOrigHtml;
     delete el.dataset.yclhMuteOrigText;
+    delete el.dataset.yclhMutePreview;
     // sig は残してOK（同一要素の判定には必要）
   };
 
@@ -1592,6 +1622,7 @@ export const createOrchestrator = () => {
       delete el.dataset.yclhMuted;
       delete el.dataset.yclhMuteOrigHtml;
       delete el.dataset.yclhMuteOrigText;
+      delete el.dataset.yclhMutePreview;
       // sig は残しても害はないけど、完全掃除したいなら消してもOK
       // delete el.dataset.yclhMuteSig;
     });
@@ -1699,6 +1730,223 @@ export const createOrchestrator = () => {
     return true;
   };
 
+  // cursor-follow tooltip
+  let wmTipEl = null;
+  let wmTipActive = false;
+  let wmTipEnabled = false;
+
+  const ensureWmTip = () => {
+    if (wmTipEl) return wmTipEl;
+
+    const el = document.createElement("div");
+    el.id = "yclh-wordmute-tooltip";
+    el.setAttribute("role", "tooltip");
+
+    el.style.position = "fixed";
+    el.style.zIndex = "2147483647";
+    el.style.maxWidth = "520px";
+    el.style.padding = "10px 12px";
+
+    el.style.background = "rgba(0, 0, 0, 0.92)";
+    el.style.color = "#fff";
+    el.style.borderRadius = "10px";
+    el.style.outline = "2px solid rgba(255,255,255,0.35)";
+    el.style.outlineOffset = "-1px";
+    el.style.boxShadow = "0 10px 30px rgba(0,0,0,.35)";
+
+    el.style.fontSize = "15px";
+    el.style.lineHeight = "1.6";
+    el.style.whiteSpace = "pre-wrap";
+    el.style.wordBreak = "break-word";
+
+    el.style.pointerEvents = "none";
+    el.style.display = "none";
+
+    document.documentElement.appendChild(el);
+    wmTipEl = el;
+    return el;
+  };
+
+  const hideWmTip = () => {
+    if (!wmTipEl) return;
+    wmTipEl.style.display = "none";
+    wmTipActive = false;
+  };
+
+  const showWmTip = (text) => {
+    const el = ensureWmTip();
+    el.textContent = text || "";
+    el.style.display = "block";
+    wmTipActive = true;
+  };
+
+  const clamp = (v, min, max) => Math.max(min, Math.min(max, v));
+
+  const moveWmTipTo = (clientX, clientY) => {
+    if (!wmTipEl || !wmTipActive) return;
+
+    const PAD = 12;
+    const GAP = 14;
+
+    // サイズ取得（display:block前提）
+    const rect = wmTipEl.getBoundingClientRect();
+    const vw = window.innerWidth || document.documentElement.clientWidth;
+    const vh = window.innerHeight || document.documentElement.clientHeight;
+
+    let x = clientX + GAP;
+    let y = clientY + GAP;
+
+    if (x + rect.width + PAD > vw) x = clientX - GAP - rect.width;
+    if (y + rect.height + PAD > vh) y = clientY - GAP - rect.height;
+
+    x = clamp(x, PAD, vw - rect.width - PAD);
+    y = clamp(y, PAD, vh - rect.height - PAD);
+
+    wmTipEl.style.left = `${x}px`;
+    wmTipEl.style.top = `${y}px`;
+  };
+
+  const onWmPointerOver = (e) => {
+    if (!wmTipEnabled) return;
+
+    const t = e.target;
+    if (!(t instanceof Element)) return;
+
+    const hit = t.closest?.(".yclh-mute-hit");
+    if (!hit) return;
+
+    const preview = hit.getAttribute("data-yclh-mute-preview") || "";
+    if (!preview) return;
+
+    showWmTip(preview);
+    moveWmTipTo(e.clientX, e.clientY);
+  };
+
+  const onWmPointerMove = (e) => {
+    if (!wmTipEnabled || !wmTipActive) return;
+    moveWmTipTo(e.clientX, e.clientY);
+  };
+
+  const onWmPointerOut = (e) => {
+    if (!wmTipEnabled) return;
+
+    const t = e.target;
+    if (!(t instanceof Element)) return;
+
+    const hit = t.closest?.(".yclh-mute-hit");
+    if (!hit) return;
+
+    const rt = e.relatedTarget;
+    if (rt instanceof Element && rt.closest?.(".yclh-mute-hit") === hit) return;
+
+    hideWmTip();
+  };
+
+  const startWordMuteTooltip = () => {
+    if (wmTipEnabled) return;
+    wmTipEnabled = true;
+
+    // capture: YouTubeの stopPropagation に強い
+    document.addEventListener("pointerover", onWmPointerOver, true);
+    document.addEventListener("pointermove", onWmPointerMove, true);
+    document.addEventListener("pointerout", onWmPointerOut, true);
+  };
+
+  const stopWordMuteTooltip = () => {
+    if (!wmTipEnabled) return;
+    wmTipEnabled = false;
+
+    document.removeEventListener("pointerover", onWmPointerOver, true);
+    document.removeEventListener("pointermove", onWmPointerMove, true);
+    document.removeEventListener("pointerout", onWmPointerOut, true);
+
+    hideWmTip();
+    if (wmTipEl) {
+      wmTipEl.remove();
+      wmTipEl = null;
+    }
+  };
+
+  // ------------------------------------------------------------
+  // word mute tooltip: chat (iframe) bridge
+  // ------------------------------------------------------------
+  let wmTipChatBound = false;
+  let wmTipChatOnOver = null;
+  let wmTipChatOnMove = null;
+  let wmTipChatOnOut = null;
+
+  const startWordMuteTooltipChat = () => {
+    const iframe = getChatFrame?.();
+    const doc = getChatDoc?.();
+    if (!iframe || !doc) return false;
+    if (wmTipChatBound) return true;
+
+    const toTopXY = (e) => {
+      const ir = iframe.getBoundingClientRect();
+      return { x: ir.left + e.clientX, y: ir.top + e.clientY };
+    };
+
+    wmTipChatOnOver = (e) => {
+      const t = e.target;
+      if (!(t instanceof doc.defaultView.Element)) return;
+
+      const hit = t.closest?.(".yclh-mute-hit");
+      if (!hit) return;
+
+      const preview = hit.getAttribute("data-yclh-mute-preview") || "";
+      if (!preview) return;
+
+      showWmTip(preview);
+
+      const { x, y } = toTopXY(e);
+      moveWmTipTo(x, y);
+    };
+
+    wmTipChatOnMove = (e) => {
+      if (!wmTipActive) return;
+      const { x, y } = toTopXY(e);
+      moveWmTipTo(x, y);
+    };
+
+    wmTipChatOnOut = (e) => {
+      const t = e.target;
+      if (!(t instanceof doc.defaultView.Element)) return;
+
+      const hit = t.closest?.(".yclh-mute-hit");
+      if (!hit) return;
+
+      const rt = e.relatedTarget;
+      if (
+        rt instanceof doc.defaultView.Element &&
+        rt.closest?.(".yclh-mute-hit") === hit
+      )
+        return;
+
+      hideWmTip();
+    };
+
+    // captureにしてYouTube側の stopPropagation に強く
+    doc.addEventListener("pointerover", wmTipChatOnOver, true);
+    doc.addEventListener("pointermove", wmTipChatOnMove, true);
+    doc.addEventListener("pointerout", wmTipChatOnOut, true);
+
+    wmTipChatBound = true;
+    return true;
+  };
+
+  const stopWordMuteTooltipChat = () => {
+    const doc = getChatDoc?.();
+    if (doc && wmTipChatBound) {
+      doc.removeEventListener("pointerover", wmTipChatOnOver, true);
+      doc.removeEventListener("pointermove", wmTipChatOnMove, true);
+      doc.removeEventListener("pointerout", wmTipChatOnOut, true);
+    }
+    wmTipChatBound = false;
+    wmTipChatOnOver = null;
+    wmTipChatOnMove = null;
+    wmTipChatOnOut = null;
+  };
+
   let wordMuteCommentsWarmupTimer = 0;
 
   const startWordMuteComments = () => {
@@ -1718,6 +1966,8 @@ export const createOrchestrator = () => {
 
     // まず一回適用（存在していれば）
     applyWordMuteOnCommentsOnce();
+
+    startWordMuteTooltip();
 
     // 初回ロード保険：しばらくポーリング（observerが拾えない/初期DOMが揺れる保険）
     if (!wordMuteCommentsWarmupTimer) {
@@ -1881,6 +2131,8 @@ export const createOrchestrator = () => {
     if (restore) {
       restoreWordMuteOnCommentsAll();
     }
+
+    stopWordMuteTooltip();
   };
 
   const getChatMessageTextEls = (doc) =>
@@ -2003,6 +2255,8 @@ export const createOrchestrator = () => {
     // 初回：style & 既存分
     ensureWordMuteStyleInChat();
     applyWordMuteOnChatOnce();
+
+    startWordMuteTooltipChat();
 
     // observer が既に正しい root を見ているなら何もしない
     if (wordMuteChatObserver && wordMuteChatLastRoot === root) return;
@@ -2248,6 +2502,9 @@ export const createOrchestrator = () => {
     // word mute 停止 & 復元
     stopWordMuteComments({ restore: true });
     stopWordMuteChat({ restore: true });
+
+    stopWordMuteTooltipChat();
+    stopWordMuteTooltip(); // comments側
 
     // 元位置へ（DOM構造）
     restoreCommentsOriginal(original);
