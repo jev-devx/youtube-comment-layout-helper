@@ -113,25 +113,6 @@
 </div>
 </details>
 
-<details><summary class="h3">ミュートワード設定</summary>
-  <div class="sub">
-
-#### 仕様：
-
-- 画面：normal
-- 仕様：
-  - 設定
-    - 入力欄：ミュートワード
-    - トグル
-      - 完全一致（デフォルト）
-      - 部分一致
-  - ミュート対象コメントは削除しない
-  - 表示文言を以下に置換：
-    - ミュートワードです（言語設定に依存）
-
-</div>
-</details>
-
 <details><summary class="h3">ミュートワードの適用範囲拡張</summary>
   <div class="sub">
 
@@ -166,22 +147,6 @@
 </details>
 
 ## UI/UX改善
-
-<details><summary class="h3">popupをタブ分割する</summary>
-  <div class="sub">
-
-#### 仕様：
-
-- 画面：popup
-- 仕様：
-  - popupを以下のようにタブで分類する
-    - 基本
-    - レイアウト
-    - オーバーレイ
-    - フィルター
-    - その他
-- メモ
-  - 色々機能が追加されてpopupが縦長になってきたりごちゃごちゃしてきたら実施する
 
 </div>
 </details>
