@@ -347,7 +347,7 @@ export const createOrchestrator = () => {
     navSeq++;
     const seq = navSeq;
 
-    // 動画単位の状態はここでリセット（超重要）
+    // 動画単位の状態はここでリセット
     replayClickedForVideoId = "";
     chatViewTries = 0;
     lastChatViewPickAt = 0;
@@ -998,6 +998,13 @@ export const createOrchestrator = () => {
     if (!applied) return;
     if (runtimeState.suspended) return;
 
+    // 無効/停止中はとにかく剥がす（再付与を防ぐ）
+    if (!settings.enabled || runtimeState.suspended) {
+      stopWordMuteComments({ restore: true });
+      stopWordMuteChat({ restore: true });
+      return;
+    }
+
     // いったん再判定（ルール0なら復元される）
     applyWordMuteOnCommentsOnce();
     applyWordMuteOnChatOnce();
@@ -1109,6 +1116,100 @@ export const createOrchestrator = () => {
     } catch {
       return null;
     }
+  };
+
+  const ensureWordMuteStyleInChat = () => {
+    try {
+      const doc = getChatDoc?.();
+      if (!doc) return false;
+
+      const ID = "yclh-word-mute-style";
+      let style = doc.getElementById(ID);
+
+      if (!style) {
+        style = doc.createElement("style");
+        style.id = ID;
+        (doc.head || doc.documentElement).appendChild(style);
+      }
+
+      // ★ ここは「上書き」して常に同じ中身にする（古い定義が残らない）
+      style.textContent = `
+      .yclh-mute-hit {
+        background: #ff3b30 !important;
+        color: #fff !important;
+        padding: 0 4px !important;
+      }
+    `;
+      return true;
+    } catch {
+      return false;
+    }
+  };
+
+  const getCommentSigFromTextEl = (textEl) => {
+    try {
+      const r =
+        textEl.closest("ytd-comment-renderer") ||
+        textEl.closest("ytd-comment-view-model") ||
+        null;
+
+      if (r) {
+        // 1) data-comment-id 系（あれば最優先）
+        const cid =
+          r.getAttribute?.("data-comment-id") || r.dataset?.commentId || null;
+        if (cid) return "c:" + cid;
+
+        // 2) href の lc=（コメントパーマリンク）
+        const a =
+          r.querySelector?.('a[href*="lc="]') ||
+          r.querySelector?.('a[href*="lc="]') ||
+          null;
+        const href = a?.getAttribute?.("href") || "";
+        if (href.includes("lc=")) {
+          const u = new URL(href, location.origin);
+          const lc = u.searchParams.get("lc");
+          if (lc) return "c:" + lc;
+        }
+
+        // 3) author+time を雑に（最後の手段）
+        const author = (
+          r.querySelector?.("#author-text")?.textContent || ""
+        ).trim();
+        const time = (
+          r.querySelector?.("a[href*='lc='] #published-time-text")
+            ?.textContent || ""
+        ).trim();
+        if (author || time) return "c:" + author + "|" + time;
+      }
+    } catch {}
+
+    // 最後の最後：ノード参照が変わるよりマシな程度
+    return "c:unknown";
+  };
+
+  const getChatSigFromMessageEl = (msgEl) => {
+    try {
+      const r =
+        msgEl.closest("yt-live-chat-text-message-renderer") ||
+        msgEl.closest("yt-live-chat-paid-message-renderer") ||
+        null;
+
+      if (r) {
+        const id = r.getAttribute?.("id") || r.dataset?.id || null;
+        if (id) return "m:" + id;
+
+        const time =
+          (r.querySelector?.("#timestamp")?.textContent || "").trim() ||
+          (r.querySelector?.("a[href*='lc=']")?.textContent || "").trim();
+
+        const author = (
+          r.querySelector?.("#author-name")?.textContent || ""
+        ).trim();
+        if (author || time) return "m:" + author + "|" + time;
+      }
+    } catch {}
+
+    return "m:unknown";
   };
 
   const isVisible = (el) => {
@@ -1356,6 +1457,16 @@ export const createOrchestrator = () => {
     nyan: "にゃーん",
   };
 
+  let wordMuteChatObserver = null;
+  let wordMuteChatBootTimer = 0;
+
+  // root差し替え追随
+  let wordMuteChatRootGuardTimer = 0;
+  let wordMuteChatLastRoot = null;
+
+  // rAF 追撃
+  let wordMuteChatRaf = 0;
+
   const buildWordMuteMatchers = () => {
     const wm = settings.wordMute || {};
     const items = Array.isArray(wm.items) ? wm.items : [];
@@ -1370,7 +1481,7 @@ export const createOrchestrator = () => {
     const presetKey = wm.preset === "nyan" ? "nyan" : "default";
     const replaceText = WORD_MUTE_PRESET_TEXT[presetKey];
 
-    const includeChat = wm.includeChat === true;
+    const includeChat = wm.muteForChat === true;
 
     const isHit = (text) => {
       const t = (text || "").trim();
@@ -1388,73 +1499,158 @@ export const createOrchestrator = () => {
     return { rules, replaceText, includeChat, isHit };
   };
 
-  const applyWordMuteToTextNode = (el, isHit, replaceText) => {
+  const applyWordMuteToTextNode = (el, isHit, replaceText, sig) => {
     if (!el) return;
 
-    // 原文DOMを退避/更新
-    // YouTubeが後から本文DOMを書き換えることがあるので、
-    // 「非ミュート状態」のときだけスナップショット更新を許可する
-    const isMutedNow = el.dataset.yclhMuted === "1";
-    const currentText = el.textContent ?? "";
-
-    if (!el.__yclhMuteOrigNodes) {
-      // 初回スナップショット
-      el.__yclhMuteOrigText = currentText;
-      el.__yclhMuteOrigNodes = Array.from(el.childNodes).map((n) =>
-        n.cloneNode(true),
-      );
-    } else if (!isMutedNow) {
-      // 非ミュート中に本文が変わったなら、原文として更新
-      if (el.__yclhMuteOrigText !== currentText) {
-        el.__yclhMuteOrigText = currentText;
-        el.__yclhMuteOrigNodes = Array.from(el.childNodes).map((n) =>
-          n.cloneNode(true),
-        );
-      }
-    }
-
-    // 判定は「必ず原文」に対して行う
-    const baseText = el.__yclhMuteOrigText ?? el.textContent ?? "";
-    const hit = isHit(baseText);
-
-    if (hit) {
-      el.textContent = replaceText;
-      el.classList.add("yclh-mute-hit");
-      el.dataset.yclhMuted = "1";
-    } else {
-      // 以前ミュートしていたが、条件が変わった場合の復元
+    // ★ DOM再利用検知：sigが変わったら、前の退避を破棄してクリーン状態にする
+    const prevSig = el.dataset.yclhMuteSig || "";
+    if (prevSig && sig && prevSig !== sig) {
+      // もし前の要素でミュートしてたなら復元してから情報を捨てる
       if (el.dataset.yclhMuted === "1") {
-        if (el.__yclhMuteOrigNodes) {
-          el.textContent = "";
-          for (const n of el.__yclhMuteOrigNodes) {
-            el.appendChild(n.cloneNode(true));
-          }
-        }
+        const orig = el.dataset.yclhMuteOrigHtml;
+        if (typeof orig === "string") el.innerHTML = orig;
       }
       el.classList.remove("yclh-mute-hit");
       delete el.dataset.yclhMuted;
-
-      // origNodes は「次回またミュートする」ために残してOK
+      delete el.dataset.yclhMuteOrigHtml;
+      delete el.dataset.yclhMuteOrigText;
     }
+    if (sig) el.dataset.yclhMuteSig = sig;
+
+    // ★ 判定は「元テキスト」でやる（置換後の文言で誤判定しない）
+    const baseText =
+      el.dataset.yclhMuteOrigText != null
+        ? el.dataset.yclhMuteOrigText
+        : (el.textContent || "").trim();
+
+    const hit = isHit(baseText);
+
+    if (hit) {
+      // 初回だけ退避
+      if (el.dataset.yclhMuteOrigHtml == null) {
+        el.dataset.yclhMuteOrigHtml = el.innerHTML;
+        el.dataset.yclhMuteOrigText = baseText;
+      }
+
+      // すでに置換済みなら無駄に触らない（ちらつき防止）
+      if (
+        el.dataset.yclhMuted !== "1" ||
+        (el.textContent || "") !== replaceText
+      ) {
+        el.textContent = replaceText;
+        el.dataset.yclhMuted = "1";
+        el.classList.add("yclh-mute-hit");
+      }
+      return;
+    }
+
+    // --- 非hit：復元 ---
+    if (el.dataset.yclhMuted === "1") {
+      const orig = el.dataset.yclhMuteOrigHtml;
+      if (typeof orig === "string") {
+        el.innerHTML = orig;
+      }
+    }
+    el.classList.remove("yclh-mute-hit");
+    delete el.dataset.yclhMuted;
+    delete el.dataset.yclhMuteOrigHtml;
+    delete el.dataset.yclhMuteOrigText;
+    // sig は残してOK（同一要素の判定には必要）
+  };
+
+  // --- observe root を絞る ---
+  const getChatMessagesRoot = (doc) =>
+    doc?.querySelector("#items.yt-live-chat-item-list-renderer") ||
+    doc?.querySelector("yt-live-chat-item-list-renderer #items") ||
+    doc?.querySelector("yt-live-chat-item-list-renderer") ||
+    null;
+
+  // --- rAF: 1フレームに1回だけ “全体 once” を走らせる ---
+  const scheduleApplyWordMuteChat = () => {
+    if (wordMuteChatRaf) return;
+    wordMuteChatRaf = requestAnimationFrame(() => {
+      wordMuteChatRaf = 0;
+      // docが取れるなら style も念押し
+      ensureWordMuteStyleInChat();
+      applyWordMuteOnChatOnce();
+    });
   };
 
   const restoreWordMuteForScope = (root) => {
     if (!root) return;
-    // dataset だけでは「origNodes持ってる要素」を拾えないので、
-    // 今回は muted マークのある要素を対象に復元する（origNodes があればDOM復元できる）
-    const els = root.querySelectorAll?.("[data-yclh-muted], .yclh-mute-hit");
-    els?.forEach((el) => {
-      if (el.__yclhMuteOrigNodes) {
-        el.textContent = "";
-        for (const n of el.__yclhMuteOrigNodes) {
-          el.appendChild(n.cloneNode(true));
-        }
-      }
 
+    const nodes = root.querySelectorAll?.(
+      "[data-yclh-muted='1'], .yclh-mute-hit, [data-yclh-mute-orig-html]",
+    );
+
+    nodes?.forEach((el) => {
+      const orig = el.dataset.yclhMuteOrigHtml;
+      if (typeof orig === "string") {
+        el.innerHTML = orig;
+      }
       el.classList.remove("yclh-mute-hit");
       delete el.dataset.yclhMuted;
-      // origNodes は残してOK（再ミュート時に再退避不要）
+      delete el.dataset.yclhMuteOrigHtml;
+      delete el.dataset.yclhMuteOrigText;
+      // sig は残しても害はないけど、完全掃除したいなら消してもOK
+      // delete el.dataset.yclhMuteSig;
     });
+  };
+
+  const restoreWordMuteOnCommentsAll = () => {
+    for (const scope of getCommentsScopes()) {
+      restoreWordMuteForScope(scope);
+    }
+  };
+
+  const onChatMutations = (muts) => {
+    if (!applied) return;
+    if (runtimeState.suspended) return;
+
+    const docNow = getChatDoc?.();
+    if (!docNow) return;
+
+    // docが差し替わってたら style が消えてるので念押し
+    ensureWordMuteStyleInChat();
+
+    let hasOtherChanges = false;
+    const added = [];
+
+    for (const m of muts) {
+      if (m.addedNodes && m.addedNodes.length) {
+        for (const n of m.addedNodes) added.push(n);
+      }
+      if (m.type === "characterData" || m.type === "attributes") {
+        hasOtherChanges = true;
+      }
+    }
+
+    if (added.length) {
+      applyWordMuteOnChatAdded(docNow, added);
+    }
+
+    if (hasOtherChanges) {
+      scheduleApplyWordMuteChat();
+    }
+  };
+
+  const attachWordMuteChatObserver = (root) => {
+    if (!root) return false;
+
+    try {
+      wordMuteChatObserver?.disconnect?.();
+    } catch {}
+
+    wordMuteChatObserver = new MutationObserver(onChatMutations);
+    wordMuteChatObserver.observe(root, {
+      childList: true,
+      subtree: true,
+      characterData: true,
+      attributes: true,
+    });
+
+    wordMuteChatLastRoot = root;
+    return true;
   };
 
   const getCommentTextEls = (root) =>
@@ -1492,7 +1688,12 @@ export const createOrchestrator = () => {
       for (const el of getCommentTextEls(scope)) {
         if (seen.has(el)) continue;
         seen.add(el);
-        applyWordMuteToTextNode(el, isHit, replaceText);
+        applyWordMuteToTextNode(
+          el,
+          isHit,
+          replaceText,
+          getCommentSigFromTextEl(el),
+        );
       }
     }
     return true;
@@ -1541,7 +1742,7 @@ export const createOrchestrator = () => {
 
         return [
           wm.preset === "nyan" ? "nyan" : "default",
-          wm.includeChat === true ? "C1" : "C0",
+          wm.muteForChat === true ? "C1" : "C0",
           ...rules.map((r) => (r.exact ? "E:" : "P:") + r.word),
         ].join("|");
       };
@@ -1606,7 +1807,7 @@ export const createOrchestrator = () => {
       null;
 
     const tryAttach = () => {
-      if (alreadyObserving) return true; // 監視は既に張ってある前提
+      if (alreadyObserving) return true;
       const stableRoot = getStableCommentsRoot();
       if (!stableRoot) return false;
 
@@ -1678,12 +1879,9 @@ export const createOrchestrator = () => {
     }
 
     if (restore) {
-      const commentsRoot = original.commentsEl;
-      if (commentsRoot) restoreWordMuteForScope(commentsRoot);
+      restoreWordMuteOnCommentsAll();
     }
   };
-
-  let wordMuteChatObserver = null;
 
   const getChatMessageTextEls = (doc) =>
     doc?.querySelectorAll?.(
@@ -1703,12 +1901,52 @@ export const createOrchestrator = () => {
     }
 
     for (const el of getChatMessageTextEls(doc)) {
-      applyWordMuteToTextNode(el, isHit, replaceText);
+      applyWordMuteToTextNode(
+        el,
+        isHit,
+        replaceText,
+        getChatSigFromMessageEl(el),
+      );
     }
     return true;
   };
 
-  let wordMuteChatBootTimer = 0;
+  const applyWordMuteOnChatAdded = (doc, nodes) => {
+    const { rules, replaceText, isHit, includeChat } = buildWordMuteMatchers();
+    if (!includeChat) return;
+
+    if (rules.length === 0) {
+      // ルール0は “全復元” が必要なので once の方でまとめてやる
+      restoreWordMuteForScope(doc.documentElement);
+      return;
+    }
+
+    const pickTargets = (n) => {
+      if (!n) return [];
+      if (n.nodeType === 1) {
+        const el = n;
+        // メッセージ本文そのもの or その配下にある #message を拾う
+        if (el.matches?.("#message")) return [el];
+        return Array.from(
+          el.querySelectorAll?.(
+            "yt-live-chat-text-message-renderer #message, yt-live-chat-paid-message-renderer #message",
+          ) || [],
+        );
+      }
+      return [];
+    };
+
+    for (const n of nodes) {
+      for (const el of pickTargets(n)) {
+        applyWordMuteToTextNode(
+          el,
+          isHit,
+          replaceText,
+          getChatSigFromMessageEl(el),
+        );
+      }
+    }
+  };
 
   const startWordMuteChat = () => {
     const { includeChat } = buildWordMuteMatchers();
@@ -1726,29 +1964,71 @@ export const createOrchestrator = () => {
 
         tries++;
         const d = getChatDoc?.();
-        if (d) {
-          startWordMuteChat(); // 今度は入る
+        const r = d ? getChatMessagesRoot(d) : null;
+
+        if (d && r) {
+          startWordMuteChat();
           return;
         }
-        if (tries < 20) wordMuteChatBootTimer = setTimeout(tick, 250);
+        if (tries < 40) wordMuteChatBootTimer = setTimeout(tick, 200);
       };
-      wordMuteChatBootTimer = setTimeout(tick, 250);
+      wordMuteChatBootTimer = setTimeout(tick, 200);
       return;
     }
 
+    const root = getChatMessagesRoot(doc);
+    if (!root) {
+      // docはあるが items がまだ → 短命リトライ
+      if (wordMuteChatBootTimer) return;
+      let tries = 0;
+      const tick = () => {
+        wordMuteChatBootTimer = 0;
+        if (!applied) return;
+        if (runtimeState.suspended) return;
+
+        tries++;
+        const d = getChatDoc?.();
+        const r = d ? getChatMessagesRoot(d) : null;
+
+        if (d && r) {
+          startWordMuteChat();
+          return;
+        }
+        if (tries < 40) wordMuteChatBootTimer = setTimeout(tick, 200);
+      };
+      wordMuteChatBootTimer = setTimeout(tick, 200);
+      return;
+    }
+
+    // 初回：style & 既存分
+    ensureWordMuteStyleInChat();
     applyWordMuteOnChatOnce();
 
-    if (wordMuteChatObserver) return;
-    wordMuteChatObserver = new MutationObserver(() => {
-      if (!applied) return;
-      if (runtimeState.suspended) return;
-      applyWordMuteOnChatOnce();
-    });
+    // observer が既に正しい root を見ているなら何もしない
+    if (wordMuteChatObserver && wordMuteChatLastRoot === root) return;
 
-    wordMuteChatObserver.observe(doc.documentElement, {
-      childList: true,
-      subtree: true,
-    });
+    attachWordMuteChatObserver(root);
+
+    // root差し替え追随（低頻度）
+    if (!wordMuteChatRootGuardTimer) {
+      wordMuteChatRootGuardTimer = setInterval(() => {
+        if (!applied) return;
+        if (runtimeState.suspended) return;
+
+        const d = getChatDoc?.();
+        if (!d) return;
+
+        const r = getChatMessagesRoot(d);
+        if (!r) return;
+
+        // root が変わったら張り替え
+        if (r !== wordMuteChatLastRoot) {
+          ensureWordMuteStyleInChat();
+          attachWordMuteChatObserver(r);
+          applyWordMuteOnChatOnce();
+        }
+      }, 1200);
+    }
   };
 
   const stopWordMuteChat = ({ restore = true } = {}) => {
@@ -1756,10 +2036,20 @@ export const createOrchestrator = () => {
       clearTimeout(wordMuteChatBootTimer);
       wordMuteChatBootTimer = 0;
     }
+    if (wordMuteChatRootGuardTimer) {
+      clearInterval(wordMuteChatRootGuardTimer);
+      wordMuteChatRootGuardTimer = 0;
+    }
+    if (wordMuteChatRaf) {
+      cancelAnimationFrame(wordMuteChatRaf);
+      wordMuteChatRaf = 0;
+    }
     if (wordMuteChatObserver) {
       wordMuteChatObserver.disconnect();
       wordMuteChatObserver = null;
     }
+    wordMuteChatLastRoot = null;
+
     if (restore) {
       const doc = getChatDoc?.();
       if (doc) restoreWordMuteForScope(doc.documentElement);

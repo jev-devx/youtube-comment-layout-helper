@@ -331,6 +331,5 @@ html[data-yt-comment-ext-enabled="1"][data-yt-comment-ext-ambient-off="1"]
 .yclh-mute-hit {
   background: #ff3b30 !important;
   color: #fff !important;
-  border-radius: 6px;
-  padding: 0 6px;
+  padding: 0 4px !important;
 }
