@@ -344,7 +344,7 @@ const bindTabs = () => {
 };
 
 /* ------------------------------------------------------------
- * mute UI (popup local UI only - step1 expected)
+ * mute UI
  * ---------------------------------------------------------- */
 
 const muteEls = {
@@ -352,11 +352,7 @@ const muteEls = {
   add: $("muteAdd"),
   presetDefault: $("replacePresetDefault"),
   presetNyan: $("replacePresetNyan"),
-};
-
-const PRESET = {
-  default: "ミュートワードが含まれています",
-  nyan: "にゃーん",
+  muteForChat: $("muteApplyChat"),
 };
 
 const MUTE_LIMIT = 15;
@@ -373,33 +369,31 @@ const genId = () =>
 // settings から来た値を “安全な形” に整形
 const normalizeWordMute = (wm) => {
   const preset = wm?.preset === "nyan" ? "nyan" : "default";
+  const muteForChat = wm?.muteForChat !== false; // default true
 
   const itemsRaw = Array.isArray(wm?.items) ? wm.items : [];
   let items = itemsRaw.map((x) => ({
     id: typeof x?.id === "string" && x.id ? x.id : genId(),
-    exact: !!x?.exact,
     word: clampText(x?.word ?? "", WORD_LIMIT),
   }));
 
   // 0件は作らない
-  if (items.length === 0) items = [{ id: genId(), exact: false, word: "" }];
+  if (items.length === 0) items = [{ id: genId(), word: "" }];
 
   // 上限
   if (items.length > MUTE_LIMIT) items = items.slice(0, MUTE_LIMIT);
 
-  return { preset, items };
+  return { preset, muteForChat, items };
 };
 
-// local state (step1)
+// local state
 let muteState = {
-  preset: "default", // 'default' | 'nyan'
-  items: [
-    { id: genId(), exact: false, word: "" }, // exact=false => 部分一致
-  ],
+  preset: "default",
+  muteForChat: true,
+  items: [{ id: genId(), word: "" }],
 };
 
 const saveMuteState = async () => {
-  // settings の 1キーとして保存
   await saveSettings({ wordMute: muteState });
 };
 
@@ -410,7 +404,12 @@ const renderMute = () => {
   muteEls.presetDefault.checked = muteState.preset === "default";
   muteEls.presetNyan.checked = muteState.preset === "nyan";
 
-  // count + add enable (←ここで1回だけ)
+  // apply to chat
+  if (muteEls.muteForChat) {
+    muteEls.muteForChat.checked = muteState.muteForChat;
+  }
+
+  // count + add enable
   if (muteCountEl) {
     muteCountEl.textContent = `${muteState.items.length}/${MUTE_LIMIT}`;
   }
@@ -427,19 +426,13 @@ const renderMute = () => {
     el.className = "muteItem";
     el.dataset.id = item.id;
 
-    const modeValue = item.exact ? "完全一致" : "部分一致";
-
     el.innerHTML = `
       <div class="muteItem__head">
         <div class="muteItem__left">
-          <span class="muteItem__label">一致</span>
-          <span class="muteItem__mode">${modeValue}</span>
+          <span class="muteItem__label">部分一致</span>
         </div>
 
         <div class="muteItem__actions">
-          <button class="iconBtn" type="button" data-action="toggleExact" aria-label="一致モード切替">
-            ⇆
-          </button>
           <button class="iconBtn iconBtn--danger" type="button" data-action="remove" aria-label="削除">
             ✕
           </button>
@@ -447,67 +440,56 @@ const renderMute = () => {
       </div>
 
       <div class="muteItem__body">
-        <div class="textInputWrap">
-          <input
-            class="textInput"
-            type="text"
-            inputmode="text"
-            maxlength="${WORD_LIMIT}"
-            placeholder="ミュートワード（最大${WORD_LIMIT}文字）"
-            value="${escapeHtml(item.word)}"
-            data-field="word"
-          />
+        <div class="muteItem__bodyRow">
+          <div class="textInputWrap">
+            <input
+              class="textInput"
+              type="text"
+              inputmode="text"
+              maxlength="${WORD_LIMIT}"
+              placeholder="ミュートワード（最大${WORD_LIMIT}文字）"
+              value="${escapeHtml(item.word)}"
+              data-field="word"
+            />
+          </div>
+
           <div class="textCounter" aria-hidden="true"></div>
         </div>
       </div>
     `;
 
     const input = el.querySelector(".textInput");
-    const wrap = el.querySelector(".textInputWrap");
-    if (input && wrap) {
-      updateCounter(wrap, item.word);
+    const bodyRow = el.querySelector(".muteItem__bodyRow");
+    if (bodyRow) {
+      updateCounter(bodyRow, item.word, WORD_LIMIT);
     }
 
-    el.addEventListener("click", async (e) => {
+    el.addEventListener("click", (e) => {
       const btn = e.target.closest("button");
       if (!btn) return;
 
-      const action = btn.dataset.action;
-
-      if (action === "remove") {
+      if (btn.dataset.action === "remove") {
         muteState.items = muteState.items.filter((x) => x.id !== item.id);
         if (muteState.items.length === 0) {
-          muteState.items = [{ id: genId(), exact: false, word: "" }];
+          muteState.items = [{ id: genId(), word: "" }];
         }
         renderMute();
         markMuteDirty();
         scheduleSaveMute();
-
-        return;
-      }
-
-      if (action === "toggleExact") {
-        item.exact = !item.exact;
-        renderMute();
-        markMuteDirty();
-        scheduleSaveMute();
-
-        return;
       }
     });
 
     el.addEventListener("input", (e) => {
       const input = e.target;
       if (!(input instanceof HTMLInputElement)) return;
-
       if (input.dataset.field !== "word") return;
 
       item.word = clampText(input.value, WORD_LIMIT);
       if (input.value !== item.word) input.value = item.word;
 
-      const wrap = input.closest(".textInputWrap");
-      if (wrap) {
-        updateCounter(wrap, item.word);
+      const bodyRow = input.closest(".muteItem__bodyRow");
+      if (bodyRow) {
+        updateCounter(bodyRow, item.word, WORD_LIMIT);
       }
 
       markMuteDirty();
@@ -518,21 +500,19 @@ const renderMute = () => {
   });
 };
 
-const updateCounter = (wrap, value) => {
-  const counter = wrap.querySelector(".textCounter");
+const updateCounter = (root, value, maxLen) => {
+  const counter = root.querySelector(".textCounter");
   if (!counter) return;
 
   const len = value.length;
-  counter.textContent = `${len}/${WORD_LIMIT}`;
-  counter.classList.toggle("is-max", len >= WORD_LIMIT);
+  counter.textContent = `${len}/${maxLen}`;
+  counter.classList.toggle("is-max", len >= maxLen);
 };
 
 const bindMuteUi = async () => {
-  // 初期ロード（sync → muteState）
   const s = await loadSettings();
   muteState = normalizeWordMute(s.wordMute);
 
-  // preset
   const onPreset = async (value) => {
     muteState.preset = value;
     renderMute();
@@ -547,21 +527,22 @@ const bindMuteUi = async () => {
     if (e.target.checked) onPreset("nyan");
   });
 
-  // add
-  muteEls.add.addEventListener("click", async () => {
-    if (muteState.items.length >= MUTE_LIMIT) return;
-    muteState.items.push({
-      id: genId(),
-      exact: false,
-      word: "",
+  if (muteEls.muteForChat) {
+    muteEls.muteForChat.addEventListener("change", (e) => {
+      muteState.muteForChat = !!e.target.checked;
+      markMuteDirty();
+      scheduleSaveMute();
     });
-    renderMute();
+  }
 
+  muteEls.add.addEventListener("click", () => {
+    if (muteState.items.length >= MUTE_LIMIT) return;
+    muteState.items.push({ id: genId(), word: "" });
+    renderMute();
     markMuteDirty();
     scheduleSaveMute();
   });
 
-  // initial
   renderMute();
 };
 

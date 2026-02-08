@@ -6,6 +6,6 @@ export const DEFAULT_SETTINGS = {
   wordMute: {
     preset: "default", // "default" | "nyan"
     items: [{ id: "init", exact: false, word: "" }],
-    includeChat: false,
+    muteForChat: false,
   },
 };
