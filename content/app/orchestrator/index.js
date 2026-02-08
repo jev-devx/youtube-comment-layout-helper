@@ -60,6 +60,10 @@ export const createOrchestrator = () => {
   const NARROW_BREAKPOINT_ENTER = 1240;
   const NARROW_BREAKPOINT_EXIT = 1280;
 
+  let wordMuteCommentsObserver = null;
+  let wordMuteCommentsBootObserver = null;
+  let wordMuteCommentsBootTimer = 0;
+
   // ------------------------------------------------------------
   // boot watch (短命監視)
   // ------------------------------------------------------------
@@ -348,6 +352,9 @@ export const createOrchestrator = () => {
     chatViewTries = 0;
     lastChatViewPickAt = 0;
 
+    stopWordMuteComments({ restore: false });
+    stopWordMuteChat({ restore: false });
+
     // いま pin / pick が走ってるなら止めて、次のDOMでやり直す
     stopPickSecondChatView();
     stopPinChat();
@@ -402,7 +409,38 @@ export const createOrchestrator = () => {
   };
 
   // ------------------------------------------------------------
-  // tab gating: context (reuse old YCLH logic)
+  // UI: active panel / tab
+  // ------------------------------------------------------------
+  // runtimeState と UI の active を同期し、chatタブだけ pin を開始する。
+  // CSS側制御のため dataset.yclhActive もここで更新する。
+  const isChatAutoRecommended = () => settings.chatAutoMode !== "default";
+
+  const applyActive = (name) => {
+    runtimeState.activePanel = name;
+    setActivePanel(name);
+    setActiveTab(name);
+
+    if (name === "chat") {
+      startPinChat();
+
+      if (isChatAutoRecommended()) {
+        startChatAutoChase();
+      } else {
+        stopPickSecondChatView();
+        stopChatAutoChase();
+      }
+
+      document.documentElement.dataset.yclhActive = name;
+    } else {
+      stopPickSecondChatView();
+      stopChatAutoChase();
+      stopPinChat();
+      delete document.documentElement.dataset.yclhActive;
+    }
+  };
+
+  // ------------------------------------------------------------
+  // tab gating: context
   // ------------------------------------------------------------
   const isPlaylistCheck = () => {
     try {
@@ -909,43 +947,10 @@ export const createOrchestrator = () => {
   };
 
   // ------------------------------------------------------------
-  // UI: active panel / tab
-  // ------------------------------------------------------------
-  // runtimeState と UI の active を同期し、chatタブだけ pin を開始する。
-  // CSS側制御のため dataset.yclhActive もここで更新する。
-  const isChatAutoRecommended = () => settings.chatAutoMode !== "default";
-
-  const applyActive = (name) => {
-    runtimeState.activePanel = name;
-    setActivePanel(name);
-    setActiveTab(name);
-
-    if (name === "chat") {
-      startPinChat();
-
-      if (isChatAutoRecommended()) {
-        startChatAutoChase();
-      } else {
-        stopPickSecondChatView();
-        stopChatAutoChase();
-      }
-
-      document.documentElement.dataset.yclhActive = name;
-    } else {
-      stopPickSecondChatView();
-      stopChatAutoChase();
-      stopPinChat();
-      delete document.documentElement.dataset.yclhActive;
-    }
-  };
-
-  // ------------------------------------------------------------
   // moveLeft sync
   // ------------------------------------------------------------
   // enabled中の html dataset を更新し、CSS側の moveLeft を切り替える。
   const applyMoveLeftFlags = () => {
-    document.documentElement.dataset.yclh = "1";
-
     if (settings.moveLeft) {
       document.documentElement.dataset.yclhLeft = "1";
     } else {
@@ -987,88 +992,47 @@ export const createOrchestrator = () => {
   };
 
   // ------------------------------------------------------------
-  // apply: one shot (DOMが揃ったらtrue)
+  // wordMute sync
   // ------------------------------------------------------------
-  // layoutRoot / sideUI を構築し、comments/related/playlist を panel に移動する。
-  // chat は触らず、active切替で pin する（＝初期化を壊さない）。
-  const tryApplyOnce = () => {
-    if (!canBuildLayoutRoot()) return false;
+  const syncWordMute = () => {
+    if (!applied) return;
+    if (runtimeState.suspended) return;
 
-    const roots = ensureLayoutRoot();
-    const side = roots?.side;
-    if (!side) return false;
+    // いったん再判定（ルール0なら復元される）
+    applyWordMuteOnCommentsOnce();
+    applyWordMuteOnChatOnce();
 
-    ensureSideTabs(side, {
-      onTabClick: (name) => {
-        if (!applied) return;
-        applyActive(name);
-      },
+    // chat の observer は includeChat のON/OFFで切り替え
+    const { includeChat } = buildWordMuteMatchers();
+
+    if (includeChat) startWordMuteChat();
+    else stopWordMuteChat({ restore: true });
+  };
+
+  const waitFor = (predicate, { timeout = 5000, interval = 100 } = {}) =>
+    new Promise((resolve) => {
+      const start = Date.now();
+      const tick = () => {
+        if (predicate()) return resolve(true);
+        if (Date.now() - start > timeout) return resolve(false);
+        setTimeout(tick, interval);
+      };
+      tick();
     });
-    ensureSidePanels(side);
 
-    const panelComments = getPanelComments();
-    const panelRelated = getPanelRelated();
-    const panelPlaylist = getPanelPlaylist();
-    const panelChat = getPanelChat();
-    if (!panelComments || !panelRelated || !panelPlaylist || !panelChat) {
-      return false;
-    }
+  const hasCommentText = (root = document) =>
+    root.querySelector(
+      "ytd-comment-renderer #content-text, ytd-comment-view-model #content-text",
+    );
 
-    // DOM移動の前にsigガード
-    const sig = getApplySig();
-    if (sig === lastAppliedSig) {
-      // 既に同条件で適用済みなら、tabsの再同期だけ軽く
-      syncTabsByContext();
-
-      // sig同一でも moveLeft だけは毎回整合させる
-      applyMoveLeftFlags();
-
-      const ctx = detectContext();
-      const active = runtimeState.activePanel || getDefaultPanelByContext(ctx);
-      applyActive(active);
-
-      // playlistも一応
-      dockPlaylistIfExists();
-
-      return true;
-    }
-    lastAppliedSig = sig;
-
-    const comments = rememberCommentsOriginal(original);
-    const related = rememberRelatedOriginal(original);
-    const playlist = rememberPlaylistOriginal(original);
-    rememberChatOriginal(original);
-
-    if (!comments && !related && !playlist) return false;
-
-    if (comments && comments.parentElement !== panelComments) {
-      panelComments.appendChild(comments);
-    }
-    if (related && related.parentElement !== panelRelated) {
-      panelRelated.appendChild(related);
-    }
-    if (playlist && playlist.parentElement !== panelPlaylist) {
-      panelPlaylist.appendChild(playlist);
-    }
-
-    const ctx = detectContext();
-    const initial = runtimeState.activePanel || getDefaultPanelByContext(ctx);
-    applyActive(initial);
-
-    syncTabsByContext();
-
-    document.documentElement.dataset.yclh = "1";
-
-    // soft restore からの復帰でも moveLeft を復元
-    applyMoveLeftFlags();
-
-    ensureCssInserted();
-
-    sizing.start();
-
-    dockPlaylistIfExists();
-
-    return true;
+  const waitForCommentsReady = async ({ timeout = 7000 } = {}) => {
+    // まずDOM上に comments の器が生えたか
+    await waitFor(() => document.querySelector("ytd-comments#comments"), {
+      timeout,
+      interval: 100,
+    });
+    // 次に本文が1個でも出たか
+    return await waitFor(() => !!hasCommentText(), { timeout, interval: 100 });
   };
 
   // ------------------------------------------------------------
@@ -1385,12 +1349,545 @@ export const createOrchestrator = () => {
   };
 
   // ------------------------------------------------------------
+  // word mute
+  // ------------------------------------------------------------
+  const WORD_MUTE_PRESET_TEXT = {
+    default: "ミュートワードが含まれています",
+    nyan: "にゃーん",
+  };
+
+  const buildWordMuteMatchers = () => {
+    const wm = settings.wordMute || {};
+    const items = Array.isArray(wm.items) ? wm.items : [];
+
+    const rules = items
+      .map((x) => ({
+        exact: !!x?.exact,
+        word: (x?.word || "").trim(),
+      }))
+      .filter((x) => x.word.length > 0);
+
+    const presetKey = wm.preset === "nyan" ? "nyan" : "default";
+    const replaceText = WORD_MUTE_PRESET_TEXT[presetKey];
+
+    const includeChat = wm.includeChat === true;
+
+    const isHit = (text) => {
+      const t = (text || "").trim();
+      if (!t) return false;
+      for (const r of rules) {
+        if (r.exact) {
+          if (t === r.word) return true;
+        } else {
+          if (t.includes(r.word)) return true;
+        }
+      }
+      return false;
+    };
+
+    return { rules, replaceText, includeChat, isHit };
+  };
+
+  const applyWordMuteToTextNode = (el, isHit, replaceText) => {
+    if (!el) return;
+
+    // 原文DOMを退避/更新
+    // YouTubeが後から本文DOMを書き換えることがあるので、
+    // 「非ミュート状態」のときだけスナップショット更新を許可する
+    const isMutedNow = el.dataset.yclhMuted === "1";
+    const currentText = el.textContent ?? "";
+
+    if (!el.__yclhMuteOrigNodes) {
+      // 初回スナップショット
+      el.__yclhMuteOrigText = currentText;
+      el.__yclhMuteOrigNodes = Array.from(el.childNodes).map((n) =>
+        n.cloneNode(true),
+      );
+    } else if (!isMutedNow) {
+      // 非ミュート中に本文が変わったなら、原文として更新
+      if (el.__yclhMuteOrigText !== currentText) {
+        el.__yclhMuteOrigText = currentText;
+        el.__yclhMuteOrigNodes = Array.from(el.childNodes).map((n) =>
+          n.cloneNode(true),
+        );
+      }
+    }
+
+    // 判定は「必ず原文」に対して行う
+    const baseText = el.__yclhMuteOrigText ?? el.textContent ?? "";
+    const hit = isHit(baseText);
+
+    if (hit) {
+      el.textContent = replaceText;
+      el.classList.add("yclh-mute-hit");
+      el.dataset.yclhMuted = "1";
+    } else {
+      // 以前ミュートしていたが、条件が変わった場合の復元
+      if (el.dataset.yclhMuted === "1") {
+        if (el.__yclhMuteOrigNodes) {
+          el.textContent = "";
+          for (const n of el.__yclhMuteOrigNodes) {
+            el.appendChild(n.cloneNode(true));
+          }
+        }
+      }
+      el.classList.remove("yclh-mute-hit");
+      delete el.dataset.yclhMuted;
+
+      // origNodes は「次回またミュートする」ために残してOK
+    }
+  };
+
+  const restoreWordMuteForScope = (root) => {
+    if (!root) return;
+    // dataset だけでは「origNodes持ってる要素」を拾えないので、
+    // 今回は muted マークのある要素を対象に復元する（origNodes があればDOM復元できる）
+    const els = root.querySelectorAll?.("[data-yclh-muted], .yclh-mute-hit");
+    els?.forEach((el) => {
+      if (el.__yclhMuteOrigNodes) {
+        el.textContent = "";
+        for (const n of el.__yclhMuteOrigNodes) {
+          el.appendChild(n.cloneNode(true));
+        }
+      }
+
+      el.classList.remove("yclh-mute-hit");
+      delete el.dataset.yclhMuted;
+      // origNodes は残してOK（再ミュート時に再退避不要）
+    });
+  };
+
+  const getCommentTextEls = (root) =>
+    root?.querySelectorAll?.(
+      "ytd-comment-renderer #content-text, ytd-comment-view-model #content-text",
+    ) || [];
+
+  const getCommentsScopes = () => {
+    // 初回ロード直後は「panel」と「オリジナル位置」でツリーが揺れることがあるので、
+    // 複数候補を全部スキャンする（重複は後で排除）
+    const panel = getPanelComments?.() || null;
+    const orig = original.commentsEl || null;
+    const yt = document.querySelector("ytd-comments#comments") || null;
+    const secondary = document.querySelector("#secondary") || null;
+
+    // null除去 & 重複排除（参照同一のとき）
+    const arr = [panel, yt, orig, secondary].filter(Boolean);
+    return Array.from(new Set(arr));
+  };
+
+  const applyWordMuteOnCommentsOnce = () => {
+    const scopes = getCommentsScopes();
+    if (!scopes.length) return false;
+
+    const { rules, replaceText, isHit } = buildWordMuteMatchers();
+
+    if (rules.length === 0) {
+      for (const scope of scopes) restoreWordMuteForScope(scope);
+      return true;
+    }
+
+    // 要素自体は document 全体で同一参照なので、二重適用しないようにSetで排除
+    const seen = new Set();
+    for (const scope of scopes) {
+      for (const el of getCommentTextEls(scope)) {
+        if (seen.has(el)) continue;
+        seen.add(el);
+        applyWordMuteToTextNode(el, isHit, replaceText);
+      }
+    }
+    return true;
+  };
+
+  let wordMuteCommentsWarmupTimer = 0;
+
+  const startWordMuteComments = () => {
+    // observer が既にいても、初回ロードの warmup（短命）は回したい
+    const alreadyObserving = !!wordMuteCommentsObserver;
+
+    const stopBoot = () => {
+      if (wordMuteCommentsBootObserver) {
+        wordMuteCommentsBootObserver.disconnect();
+        wordMuteCommentsBootObserver = null;
+      }
+      if (wordMuteCommentsBootTimer) {
+        clearTimeout(wordMuteCommentsBootTimer);
+        wordMuteCommentsBootTimer = 0;
+      }
+    };
+
+    // まず一回適用（存在していれば）
+    applyWordMuteOnCommentsOnce();
+
+    // 初回ロード保険：しばらくポーリング（observerが拾えない/初期DOMが揺れる保険）
+    if (!wordMuteCommentsWarmupTimer) {
+      const startedAt = Date.now();
+      const MAX_MS = 9000;
+      let lastCount = -1;
+      let stableHits = 0;
+      let lastSig = "";
+      let sigStableHits = 0;
+
+      const getWordMuteSig = () => {
+        const wm = settings.wordMute || {};
+        const items = Array.isArray(wm.items) ? wm.items : [];
+        const rules = items
+          .map((x) => ({
+            exact: !!x?.exact,
+            word: (x?.word || "").trim(),
+          }))
+          .filter((x) => x.word.length > 0)
+          // 順序が変わっても同一扱いにしたいなら sort（任意）
+          .sort((a, b) => (a.word + a.exact).localeCompare(b.word + b.exact));
+
+        return [
+          wm.preset === "nyan" ? "nyan" : "default",
+          wm.includeChat === true ? "C1" : "C0",
+          ...rules.map((r) => (r.exact ? "E:" : "P:") + r.word),
+        ].join("|");
+      };
+
+      const countAll = (scopes) => {
+        const seen = new Set();
+        let n = 0;
+        for (const s of scopes) {
+          for (const el of getCommentTextEls(s)) {
+            if (seen.has(el)) continue;
+            seen.add(el);
+            n++;
+          }
+        }
+        return n;
+      };
+
+      const tick = () => {
+        wordMuteCommentsWarmupTimer = 0;
+        if (!applied) return;
+        if (runtimeState.suspended) return;
+
+        // 毎回スキャン（初回はとにかく “揃うまで殴る”）
+        applyWordMuteOnCommentsOnce();
+
+        // ルールの安定チェック（後から items が確定するケース対策）
+        const sig = getWordMuteSig();
+        if (sig === lastSig) sigStableHits++;
+        else {
+          lastSig = sig;
+          sigStableHits = 0;
+          // ルールが変わったら count 安定判定もリセット（再ロード扱い）
+          lastCount = -1;
+          stableHits = 0;
+        }
+
+        const scopes = getCommentsScopes();
+        if (scopes.length) {
+          const count = countAll(scopes);
+          if (count === lastCount) stableHits++;
+          else stableHits = 0;
+          lastCount = count;
+
+          // DOMもルールも安定したら warmup 終了
+          if (stableHits >= 3 && sigStableHits >= 3 && count > 0) return;
+        }
+
+        if (Date.now() - startedAt < MAX_MS) {
+          wordMuteCommentsWarmupTimer = setTimeout(tick, 250);
+        }
+      };
+
+      wordMuteCommentsWarmupTimer = setTimeout(tick, 250);
+    }
+
+    const getStableCommentsRoot = () =>
+      document.querySelector("ytd-comments#comments") ||
+      document.querySelector("ytd-item-section-renderer#sections") ||
+      document.querySelector("#comment-items") ||
+      getPanelComments?.() ||
+      document.querySelector("#secondary") ||
+      null;
+
+    const tryAttach = () => {
+      if (alreadyObserving) return true; // 監視は既に張ってある前提
+      const stableRoot = getStableCommentsRoot();
+      if (!stableRoot) return false;
+
+      // 初回適用
+      applyWordMuteOnCommentsOnce();
+
+      // 本監視
+      let wmCommentsDebounce = 0;
+
+      wordMuteCommentsObserver = new MutationObserver(() => {
+        if (!applied) return;
+        if (runtimeState.suspended) return;
+        if (wmCommentsDebounce) return;
+        wmCommentsDebounce = setTimeout(() => {
+          wmCommentsDebounce = 0;
+          applyWordMuteOnCommentsOnce();
+        }, 200);
+      });
+
+      wordMuteCommentsObserver.observe(stableRoot, {
+        childList: true,
+        subtree: true,
+        characterData: true,
+      });
+
+      return true;
+    };
+
+    // まず即トライ
+    if (tryAttach()) {
+      stopBoot();
+      return;
+    }
+
+    // comments がまだ無い → 短命で待つ（永久監視しない）
+    if (wordMuteCommentsBootObserver) return;
+
+    wordMuteCommentsBootObserver = new MutationObserver(() => {
+      if (!applied) return;
+      if (runtimeState.suspended) return;
+      if (tryAttach()) stopBoot();
+    });
+
+    wordMuteCommentsBootObserver.observe(document.documentElement, {
+      childList: true,
+      subtree: true,
+    });
+
+    // 8秒で諦める（軽量）
+    wordMuteCommentsBootTimer = setTimeout(stopBoot, 8000);
+  };
+
+  const stopWordMuteComments = ({ restore = true } = {}) => {
+    if (wordMuteCommentsObserver) {
+      wordMuteCommentsObserver.disconnect();
+      wordMuteCommentsObserver = null;
+    }
+    if (wordMuteCommentsBootObserver) {
+      wordMuteCommentsBootObserver.disconnect();
+      wordMuteCommentsBootObserver = null;
+    }
+    if (wordMuteCommentsBootTimer) {
+      clearTimeout(wordMuteCommentsBootTimer);
+      wordMuteCommentsBootTimer = 0;
+    }
+    if (wordMuteCommentsWarmupTimer) {
+      clearTimeout(wordMuteCommentsWarmupTimer);
+      wordMuteCommentsWarmupTimer = 0;
+    }
+
+    if (restore) {
+      const commentsRoot = original.commentsEl;
+      if (commentsRoot) restoreWordMuteForScope(commentsRoot);
+    }
+  };
+
+  let wordMuteChatObserver = null;
+
+  const getChatMessageTextEls = (doc) =>
+    doc?.querySelectorAll?.(
+      "yt-live-chat-text-message-renderer #message, yt-live-chat-paid-message-renderer #message",
+    ) || [];
+
+  const applyWordMuteOnChatOnce = () => {
+    const doc = getChatDoc?.();
+    if (!doc) return false;
+
+    const { rules, replaceText, isHit, includeChat } = buildWordMuteMatchers();
+    if (!includeChat) return true;
+
+    if (rules.length === 0) {
+      restoreWordMuteForScope(doc.documentElement);
+      return true;
+    }
+
+    for (const el of getChatMessageTextEls(doc)) {
+      applyWordMuteToTextNode(el, isHit, replaceText);
+    }
+    return true;
+  };
+
+  let wordMuteChatBootTimer = 0;
+
+  const startWordMuteChat = () => {
+    const { includeChat } = buildWordMuteMatchers();
+    if (!includeChat) return;
+
+    const doc = getChatDoc?.();
+    if (!doc) {
+      // chat iframe がまだなら短命リトライ
+      if (wordMuteChatBootTimer) return;
+      let tries = 0;
+      const tick = () => {
+        wordMuteChatBootTimer = 0;
+        if (!applied) return;
+        if (runtimeState.suspended) return;
+
+        tries++;
+        const d = getChatDoc?.();
+        if (d) {
+          startWordMuteChat(); // 今度は入る
+          return;
+        }
+        if (tries < 20) wordMuteChatBootTimer = setTimeout(tick, 250);
+      };
+      wordMuteChatBootTimer = setTimeout(tick, 250);
+      return;
+    }
+
+    applyWordMuteOnChatOnce();
+
+    if (wordMuteChatObserver) return;
+    wordMuteChatObserver = new MutationObserver(() => {
+      if (!applied) return;
+      if (runtimeState.suspended) return;
+      applyWordMuteOnChatOnce();
+    });
+
+    wordMuteChatObserver.observe(doc.documentElement, {
+      childList: true,
+      subtree: true,
+    });
+  };
+
+  const stopWordMuteChat = ({ restore = true } = {}) => {
+    if (wordMuteChatBootTimer) {
+      clearTimeout(wordMuteChatBootTimer);
+      wordMuteChatBootTimer = 0;
+    }
+    if (wordMuteChatObserver) {
+      wordMuteChatObserver.disconnect();
+      wordMuteChatObserver = null;
+    }
+    if (restore) {
+      const doc = getChatDoc?.();
+      if (doc) restoreWordMuteForScope(doc.documentElement);
+    }
+  };
+
+  // ------------------------------------------------------------
+  // apply: one shot (DOMが揃ったらtrue)
+  // ------------------------------------------------------------
+  // layoutRoot / sideUI を構築し、comments/related/playlist を panel に移動する。
+  // chat は触らず、active切替で pin する（＝初期化を壊さない）。
+  const tryApplyOnce = () => {
+    if (!canBuildLayoutRoot()) return false;
+
+    const roots = ensureLayoutRoot();
+    const side = roots?.side;
+    if (!side) return false;
+
+    ensureSideTabs(side, {
+      onTabClick: (name) => {
+        if (!applied) return;
+        applyActive(name);
+      },
+    });
+    ensureSidePanels(side);
+
+    const panelComments = getPanelComments();
+    const panelRelated = getPanelRelated();
+    const panelPlaylist = getPanelPlaylist();
+    const panelChat = getPanelChat();
+    if (!panelComments || !panelRelated || !panelPlaylist || !panelChat) {
+      return false;
+    }
+
+    // DOM移動の前にsigガード
+    const sig = getApplySig();
+    if (sig === lastAppliedSig) {
+      // 既に同条件で適用済みなら、tabsの再同期だけ軽く
+      syncTabsByContext();
+
+      // sig同一でも moveLeft だけは毎回整合させる
+      applyMoveLeftFlags();
+
+      const ctx = detectContext();
+      const active = runtimeState.activePanel || getDefaultPanelByContext(ctx);
+      applyActive(active);
+
+      // playlistも一応
+      dockPlaylistIfExists();
+
+      // 既に適用済み判定でも、word mute は起動/同期しておく
+      startWordMuteComments();
+      startWordMuteChat();
+      applyWordMuteOnCommentsOnce();
+      applyWordMuteOnChatOnce();
+
+      return true;
+    }
+
+    const comments = rememberCommentsOriginal(original);
+    const related = rememberRelatedOriginal(original);
+    const playlist = rememberPlaylistOriginal(original);
+    rememberChatOriginal(original);
+
+    if (!comments && !related && !playlist) return false;
+
+    lastAppliedSig = sig;
+
+    waitForCommentsReady().then(() => {
+      if (!applied || runtimeState.suspended) return;
+      applyWordMuteOnCommentsOnce();
+    });
+
+    if (comments && comments.parentElement !== panelComments) {
+      panelComments.appendChild(comments);
+    }
+    if (related && related.parentElement !== panelRelated) {
+      panelRelated.appendChild(related);
+    }
+    if (playlist && playlist.parentElement !== panelPlaylist) {
+      panelPlaylist.appendChild(playlist);
+    }
+
+    const ctx = detectContext();
+    const initial = runtimeState.activePanel || getDefaultPanelByContext(ctx);
+    applyActive(initial);
+
+    syncTabsByContext();
+
+    document.documentElement.dataset.yclh = "1";
+
+    // soft restore からの復帰でも moveLeft を復元
+    applyMoveLeftFlags();
+
+    ensureCssInserted();
+
+    startWordMuteComments();
+    startWordMuteChat();
+
+    sizing.start();
+
+    dockPlaylistIfExists();
+
+    applyWordMuteOnCommentsOnce();
+    applyWordMuteOnChatOnce();
+    setTimeout(() => {
+      if (!applied || runtimeState.suspended) return;
+      applyWordMuteOnCommentsOnce();
+      applyWordMuteOnChatOnce();
+    }, 800);
+
+    return true;
+  };
+
+  // ------------------------------------------------------------
   // public: apply
   // ------------------------------------------------------------
   // 有効化のエントリ。まずwatch開始→tryApplyOnce、ダメなら短命boot監視でリトライ。
   // 永久監視にしないため 4秒で監視停止する。
   const apply = () => {
     if (applied) return;
+
+    // 先に環境判定（まだappliedにしない）
+    if (!settings.enabled) return;
+    if (!isWatch()) return;
+    if (isNarrowMode()) return;
+    if (isTheaterMode()) return;
+
     applied = true;
 
     lastCtxSig = "";
@@ -1404,6 +1901,8 @@ export const createOrchestrator = () => {
     evaluateEnvAndSync("apply");
     if (runtimeState.suspended) return;
 
+    // playlist は遅延生成/作り直しがあるため watch が必要。
+    // 初回 apply で watch を開始し、SPA 遷移時は bumpNav 側で再起動（または起動保証）する。
     startPlaylistWatch();
 
     if (tryApplyOnce()) return;
@@ -1456,6 +1955,10 @@ export const createOrchestrator = () => {
     // sizing停止
     sizing.stop();
 
+    // word mute 停止 & 復元
+    stopWordMuteComments({ restore: true });
+    stopWordMuteChat({ restore: true });
+
     // 元位置へ（DOM構造）
     restoreCommentsOriginal(original);
     restoreRelatedOriginal(original);
@@ -1491,5 +1994,12 @@ export const createOrchestrator = () => {
     publishRuntime();
   };
 
-  return { apply, restore, syncMoveLeft, syncChatAutoMode, publishRuntime };
+  return {
+    apply,
+    restore,
+    syncMoveLeft,
+    syncChatAutoMode,
+    syncWordMute,
+    publishRuntime,
+  };
 };
