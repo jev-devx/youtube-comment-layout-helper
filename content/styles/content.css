@@ -324,3 +324,13 @@ html[data-yt-comment-ext-enabled="1"][data-yt-comment-ext-ambient-off="1"]
   opacity: 0 !important;
   filter: none !important;
 }
+
+/* ------------------------------------------------------------
+ * mute
+ * ---------------------------------------------------------- */
+.yclh-mute-hit {
+  background: #ff3b30 !important;
+  color: #fff !important;
+  border-radius: 6px;
+  padding: 0 6px;
+}

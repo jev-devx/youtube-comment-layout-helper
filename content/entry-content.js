@@ -29,6 +29,9 @@ import { createOrchestrator } from "./app/orchestrator/index.js";
       // chatAutoMode も毎回整合
       orc.syncChatAutoMode();
 
+      // 初回ロードでも wordMute を評価
+      orc.syncWordMute();
+
       // アンビエント効果を無効化する
       applyAmbientFlags();
     } else {
@@ -62,6 +65,11 @@ import { createOrchestrator } from "./app/orchestrator/index.js";
     // chatAutoMode 単体は即反映（有効中のみ中で弾く）
     if ("chatAutoMode" in patch) {
       orc.syncChatAutoMode();
+    }
+
+    // wordMute 単体は即反映（有効中のみ中で弾く）
+    if ("wordMute" in patch) {
+      orc.syncWordMute();
     }
   });
 })();
