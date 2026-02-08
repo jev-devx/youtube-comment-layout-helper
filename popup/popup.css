@@ -611,6 +611,13 @@ a:focus {
   box-shadow: var(--shadow);
 }
 
+.footer-desc {
+  margin-top: 2px;
+  font-size: 11px;
+  color: var(--muted);
+  text-align: center;
+}
+
 /* reset ボタンは横幅いっぱい */
 .footer-card .btn--ghost {
   width: 100%;
