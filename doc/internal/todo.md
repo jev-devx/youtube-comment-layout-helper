@@ -113,23 +113,6 @@
 </div>
 </details>
 
-<details><summary class="h3">ミュートワードの適用範囲拡張</summary>
-  <div class="sub">
-
-#### 仕様：
-
-- 画面：live、replay
-- 仕様：
-  - 設定
-    - トグル：チャット・チャットリプレイにも適用
-      - ON（デフォルト）
-      - OFF
-  - チャット欄上でも「ミュートワードです」に置換
-    - DOMは維持（高さ崩れ防止）
-
-</div>
-</details>
-
 <details><summary class="h3">ミュートコメントのオーバーレイ除外</summary>
   <div class="sub">
 
