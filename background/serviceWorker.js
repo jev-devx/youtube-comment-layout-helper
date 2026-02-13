@@ -39,14 +39,9 @@ const writeRuntimeBaseForTabFromUrl = async (tabId, url) => {
 };
 
 /** detail runtime は content 由来として常に上書きOK（theater/narrow等） */
-const writeRuntimeDetailForTabFromContent = (tabId, payload, sendResponse) => {
+const writeRuntimeDetailForTabFromContent = async (tabId, payload) => {
   const key = tabId != null ? runtimeKeyForTab(tabId) : "yclhRuntime";
-
-  chrome.storage.session.set({ [key]: payload }, () => {
-    const err = chrome.runtime.lastError;
-    if (err) sendResponse?.({ ok: false, error: err.message });
-    else sendResponse?.({ ok: true });
-  });
+  await chrome.storage.session.set({ [key]: payload });
 };
 
 // --------------------
@@ -101,6 +96,8 @@ const ensureIconCache = async () => {
 // tab state update
 // --------------------
 
+const isNoTab = (e) => /No tab with id/i.test(e?.message || "");
+
 const updateTabState = async (tabId, url) => {
   if (tabId == null) return;
   if (!isHttpUrl(url)) return;
@@ -120,17 +117,27 @@ const updateTabState = async (tabId, url) => {
       imageData: disabled ? ICON_CACHE.disabled : ICON_CACHE.enabled,
     });
   } catch (e) {
-    log.warn("setIcon(imageData) failed:", e, { tabId, url, disabled });
+    if (!isNoTab(e)) {
+      log.warn("setIcon(imageData) failed:", e, { tabId, url, disabled });
+    }
   }
 };
 
 // debounce for noisy events
 const timers = new Map();
+const pending = new Map();
 const scheduleUpdate = (tabId, url) => {
+  if (tabId == null) return;
+  pending.set(tabId, url);
+
   clearTimeout(timers.get(tabId));
   timers.set(
     tabId,
-    setTimeout(() => updateTabState(tabId, url), 60),
+    setTimeout(() => {
+      const u = pending.get(tabId) || "";
+      pending.delete(tabId);
+      updateTabState(tabId, u);
+    }, 60),
   );
 };
 
@@ -145,6 +152,17 @@ chrome.tabs.onUpdated.addListener((tabId, info, tab) => {
   const url = info.url ?? tab?.url;
   if (!url) return;
   scheduleUpdate(tabId, url);
+});
+
+chrome.tabs.onRemoved.addListener((tabId) => {
+  clearTimeout(timers.get(tabId));
+  timers.delete(tabId);
+  pending.delete(tabId);
+
+  chrome.storage.session.remove([
+    runtimeKeyForTab(tabId),
+    runtimeBaseKeyForTab(tabId),
+  ]);
 });
 
 chrome.webNavigation.onHistoryStateUpdated.addListener(
@@ -186,25 +204,42 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
   const tabId = sender?.tab?.id;
 
   if (msg?.type === "YCLH_SET_RUNTIME") {
-    writeRuntimeDetailForTabFromContent(tabId, msg.payload, sendResponse);
-    return true; // async response
+    (async () => {
+      try {
+        await writeRuntimeDetailForTabFromContent(tabId, msg.payload);
+        sendResponse?.({ ok: true });
+      } catch (e) {
+        sendResponse?.({ ok: false, error: e?.message || String(e) });
+      }
+    })();
+    return true;
   }
 
   if (!tabId) return;
 
-  if (msg?.type === "YCLH_INSERT_CSS") {
-    chrome.scripting.insertCSS({
-      target: { tabId },
-      files: ["dist/content.css"],
-    });
-    return;
-  }
+  (async () => {
+    try {
+      if (msg?.type === "YCLH_INSERT_CSS") {
+        await chrome.scripting.insertCSS({
+          target: { tabId },
+          files: ["dist/content.css"],
+        });
+        sendResponse?.({ ok: true });
+        return;
+      }
 
-  if (msg?.type === "YCLH_REMOVE_CSS") {
-    chrome.scripting.removeCSS({
-      target: { tabId },
-      files: ["dist/content.css"],
-    });
-    return;
-  }
+      if (msg?.type === "YCLH_REMOVE_CSS") {
+        await chrome.scripting.removeCSS({
+          target: { tabId },
+          files: ["dist/content.css"],
+        });
+        sendResponse?.({ ok: true });
+        return;
+      }
+    } catch (e) {
+      sendResponse?.({ ok: false, error: e?.message || String(e) });
+    }
+  })();
+
+  return true;
 });
