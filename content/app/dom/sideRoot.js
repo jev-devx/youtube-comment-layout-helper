@@ -18,6 +18,55 @@ export const getPanelRelated = () => $id(IDS.panelRelated);
 export const getPanelPlaylist = () => $id(IDS.panelPlaylist);
 export const getPanelChat = () => $id(IDS.panelChat);
 
+const getPageLang = () => {
+  const htmlLang = (document.documentElement.lang || "").toLowerCase();
+  if (htmlLang) return htmlLang;
+
+  try {
+    const ytcfgLang = (window.ytcfg?.get?.("HL") || "").toLowerCase();
+    if (ytcfgLang) return ytcfgLang;
+  } catch {}
+
+  return (navigator.language || "en").toLowerCase();
+};
+
+const getTabLabels = () => {
+  const lang = getPageLang();
+
+  if (lang.startsWith("ja")) {
+    return {
+      comments: "コメント",
+      related: "関連動画",
+      playlist: "再生リスト",
+      chat: "チャット",
+    };
+  }
+
+  return {
+    comments: "Comments",
+    related: "Related",
+    playlist: "Playlist",
+    chat: "Chat",
+  };
+};
+
+const applyTabLabels = (tabs) => {
+  if (!tabs) return;
+
+  const labels = getTabLabels();
+
+  for (const btn of tabs.querySelectorAll("button[data-tab]")) {
+    const name = btn.dataset.tab;
+    if (!name) continue;
+
+    const label = labels[name];
+    if (!label) continue;
+
+    btn.textContent = label;
+    btn.setAttribute("aria-label", label);
+  }
+};
+
 /**
  * tabs（comments / related）を作る
  * - onTabClick(tabName) を呼ぶだけ（状態管理は orchestrator 側）
@@ -30,26 +79,27 @@ export const ensureSideTabs = (sideRoot, { onTabClick } = {}) => {
   if (!tabs) {
     tabs = document.createElement("div");
     tabs.id = IDS.tabs;
-
     tabs.classList.add("yclh-side-tabs-bar");
 
-    const mkBtn = (name, label) => {
+    const mkBtn = (name) => {
       const b = document.createElement("button");
       b.type = "button";
       b.dataset.tab = name;
-      b.textContent = label;
-
       b.classList.add("yclh-side-tab");
-
       return b;
     };
 
-    tabs.appendChild(mkBtn("comments", "コメント"));
-    tabs.appendChild(mkBtn("related", "関連動画"));
-    tabs.appendChild(mkBtn("playlist", "再生リスト"));
-    tabs.appendChild(mkBtn("chat", "チャット"));
+    tabs.appendChild(mkBtn("comments"));
+    tabs.appendChild(mkBtn("related"));
+    tabs.appendChild(mkBtn("playlist"));
+    tabs.appendChild(mkBtn("chat"));
+
+    applyTabLabels(tabs);
 
     safeInsertBefore(sideRoot, tabs, sideRoot.firstChild);
+  } else {
+    // 既存タブにも言語反映
+    applyTabLabels(tabs);
   }
 
   // bind（1回だけ）
@@ -64,7 +114,9 @@ export const ensureSideTabs = (sideRoot, { onTabClick } = {}) => {
       const name = btn.dataset.tab;
       if (!name) return;
 
-      if (typeof onTabClick === "function") onTabClick(name);
+      if (typeof tabs.__yclhOnTabClick === "function") {
+        tabs.__yclhOnTabClick(name);
+      }
     });
   }
 
