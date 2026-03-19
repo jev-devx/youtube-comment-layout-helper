@@ -1273,13 +1273,24 @@ export const createOrchestrator = () => {
     return dispatchClickInFrame(win, second);
   };
 
+  const isReplaySelectedLabel = (label) => {
+    const t = (label || "").trim();
+
+    return (
+      t === "チャット" ||
+      t === "チャットのリプレイ" ||
+      t === "Live chat" ||
+      t === "Live chat replay"
+    );
+  };
+
   const pickSecondChatViewOnce = () => {
     const doc = getChatDoc();
     const win = getChatWin();
     if (!doc || !win) return false;
 
     const label = getLabelTextInFrame(doc);
-    if (label === "チャット" || label === "チャットのリプレイ") return true;
+    if (isReplaySelectedLabel(label)) return true;
 
     const trigger = findTriggerInFrame(doc);
     if (!trigger) return false;
