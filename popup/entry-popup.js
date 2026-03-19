@@ -4,6 +4,7 @@ import {
   onSettingsChanged,
 } from "../content/shared/storage.js";
 import { DEFAULT_SETTINGS } from "../content/shared/settings.js";
+import { getLang, MESSAGES, getMessage } from "./i18n.js";
 
 /* ------------------------------------------------------------
  * DOM ユーティリティ
@@ -49,30 +50,48 @@ const showInfo = (msg) => {
 };
 
 /* ------------------------------------------------------------
- * runtime（session）表示ロジック
+ * 言語初期化: data-i18n 属性の処理
  * ---------------------------------------------------------- */
 
-const MSG = {
-  // 共通
-  NOT_YOUTUBE: "YCLHはYouTube専用の拡張機能です",
-  NOT_WATCH: "YouTubeの動画ページで有効になります",
-  RELOAD_HINT: "うまく反映されない場合は、ページをリロードしてください",
+const initializeLanguage = () => {
+  // data-i18n 属性を持つすべての要素を処理
+  document.querySelectorAll("[data-i18n]").forEach((el) => {
+    const key = el.getAttribute("data-i18n");
+    const text = getMessage(key);
 
-  // Runtime / 状態系
-  RUNTIME_UNAVAILABLE:
-    "ページ情報を取得できませんでした（タブを更新すると改善することがあります）",
-
-  // 設定系
-  REQUIRE_ENABLE:
-    "このページで有効にするには、下の「YCLHを有効化する」をONにしてください",
-
-  // Overlay（環境要因）
-  THEATER_DISABLED: "シアターモードのため自動でOFFになりました",
-  THEATER_HINT: "シアターモード解除してONにしてください",
-
-  NARROW_DISABLED: "ウィンドウ幅が小さいため自動でOFFになりました",
-  NARROW_HINT: "ウィンドウ幅を広げてONにしてください",
+    if (typeof text === "function") {
+      // 関数の場合は引数を保存
+      el.dataset.i18nKey = key;
+    } else if (text) {
+      // HTMLを含む場合はinnerHTML、そうでなければtextContentを使う
+      if (text.includes("<")) {
+        el.innerHTML = text;
+      } else {
+        el.textContent = text;
+      }
+    }
+  });
 };
+
+const MSG = {
+  NOT_YOUTUBE: getMessage("NOT_YOUTUBE"),
+  NOT_WATCH: getMessage("NOT_WATCH"),
+  RELOAD_HINT: getMessage("RELOAD_HINT"),
+  RUNTIME_UNAVAILABLE: getMessage("RUNTIME_UNAVAILABLE"),
+  REQUIRE_ENABLE: getMessage("REQUIRE_ENABLE"),
+  THEATER_DISABLED: getMessage("THEATER_DISABLED"),
+  THEATER_HINT: getMessage("THEATER_HINT"),
+  NARROW_DISABLED: getMessage("NARROW_DISABLED"),
+  NARROW_HINT: getMessage("NARROW_HINT"),
+};
+
+const MSG_MUTE = {
+  REQUIRE_ENABLE: getMessage("MUTE_REQUIRE_ENABLE"),
+};
+
+/* ------------------------------------------------------------
+ * runtime（session）表示ロジック
+ * ---------------------------------------------------------- */
 
 const renderRuntimeStatus = (rt, settings) => {
   // 確認用
@@ -426,14 +445,18 @@ const renderMute = () => {
     el.className = "muteItem";
     el.dataset.id = item.id;
 
+    const placeholder = getMessage("muteItemPlaceholder", WORD_LIMIT);
+    const itemLabel = getMessage("muteItemLabel");
+    const removeLabel = getMessage("muteItemRemoveLabel");
+
     el.innerHTML = `
       <div class="muteItem__head">
         <div class="muteItem__left">
-          <span class="muteItem__label">部分一致</span>
+          <span class="muteItem__label">${itemLabel}</span>
         </div>
 
         <div class="muteItem__actions">
-          <button class="iconBtn iconBtn--danger" type="button" data-action="remove" aria-label="削除">
+          <button class="iconBtn iconBtn--danger" type="button" data-action="remove" aria-label="${removeLabel}">
             ✕
           </button>
         </div>
@@ -447,7 +470,7 @@ const renderMute = () => {
               type="text"
               inputmode="text"
               maxlength="${WORD_LIMIT}"
-              placeholder="ミュートワード（最大${WORD_LIMIT}文字）"
+              placeholder="${placeholder}"
               value="${escapeHtml(item.word)}"
               data-field="word"
             />
@@ -578,11 +601,6 @@ function escapeHtml(str) {
 const muteBannerEl = $("muteBanner");
 const muteBannerTextEl = $("muteBannerText");
 
-const MSG_MUTE = {
-  REQUIRE_ENABLE:
-    "適用するには「YCLHを有効化」をONにしてください\nOFFの状態でも設定は保存できます",
-};
-
 const bindCloseFlush = () => {
   const flush = async () => {
     try {
@@ -609,6 +627,8 @@ const bindCloseFlush = () => {
 /* ------------------------------------------------------------
  * 起動シーケンス
  * ---------------------------------------------------------- */
+initializeLanguage();
+
 resetStatusUi();
 
 bindTabs();

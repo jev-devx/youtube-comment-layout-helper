@@ -9,8 +9,10 @@
     <div class="app">
       <!-- header -->
       <header class="header">
-        <div class="title">YCLH</div>
-        <div class="subtitle">YouTube Comment Layout Helper</div>
+        <div class="title" data-i18n="title">YCLH</div>
+        <div class="subtitle" data-i18n="subtitle">
+          YouTube Comment Layout Helper
+        </div>
       </header>
 
       <!-- Info banner -->
@@ -30,6 +32,7 @@
             role="tab"
             aria-selected="true"
             aria-controls="panelLayout"
+            data-i18n="tabLayout"
           >
             メイン
           </button>
@@ -42,6 +45,7 @@
             aria-selected="false"
             aria-controls="panelMute"
             tabindex="-1"
+            data-i18n="tabMute"
           >
             ミュート
           </button>
@@ -58,8 +62,12 @@
           <section class="card">
             <label class="row toggle-row">
               <div class="row-text">
-                <div class="row-title">YCLHを有効化する</div>
-                <div class="row-desc">コメント欄レイアウトを拡張します</div>
+                <div class="row-title" data-i18n="enabledTitle">
+                  YCLHを有効化する
+                </div>
+                <div class="row-desc" data-i18n="enabledDesc">
+                  コメント欄レイアウトを拡張します
+                </div>
               </div>
 
               <span class="toggle">
@@ -72,13 +80,17 @@
           <!-- Options -->
           <section class="card">
             <div class="section-head">
-              <div class="section-title">OPTIONS</div>
+              <div class="section-title" data-i18n="optionsTitle">OPTIONS</div>
             </div>
 
             <label class="row toggle-row">
               <div class="row-text">
-                <div class="row-title">サイドパネルを左に配置</div>
-                <div class="row-desc">レイアウトの左右を切り替えます</div>
+                <div class="row-title" data-i18n="moveLeftTitle">
+                  サイドパネルを左に配置
+                </div>
+                <div class="row-desc" data-i18n="moveLeftDesc">
+                  レイアウトの左右を切り替えます
+                </div>
               </div>
 
               <span class="toggle">
@@ -90,7 +102,7 @@
             <!-- chatAutoRecommended groupe start -->
             <div class="row">
               <div class="row-text">
-                <div class="row-title">
+                <div class="row-title" data-i18n="chatAutoTitle">
                   チャット・チャットのリプレイの表示方法
                 </div>
               </div>
@@ -98,8 +110,10 @@
             <div class="group">
               <label class="row row-sub radio-row">
                 <div class="row-text">
-                  <div class="row-title">おすすめ</div>
-                  <div class="row-desc">
+                  <div class="row-title" data-i18n="chatAutoRecommendedTitle">
+                    おすすめ
+                  </div>
+                  <div class="row-desc" data-i18n="chatAutoRecommendedDesc">
                     <ul class="row-desc-list">
                       <li>生配信「チャット」</li>
                       <li>アーカイブ「上位のチャットのリプレイ」</li>
@@ -121,8 +135,12 @@
 
               <label class="row row-sub radio-row">
                 <div class="row-text">
-                  <div class="row-title">デフォルト</div>
-                  <div class="row-desc">YouTubeの既定の挙動を使用します</div>
+                  <div class="row-title" data-i18n="chatAutoDefaultTitle">
+                    デフォルト
+                  </div>
+                  <div class="row-desc" data-i18n="chatAutoDefaultDesc">
+                    YouTubeの既定の挙動を使用します
+                  </div>
                 </div>
 
                 <span class="radio">
@@ -150,7 +168,9 @@
         >
           <section class="card">
             <div class="section-head">
-              <div class="section-title">WORD MUTE</div>
+              <div class="section-title" data-i18n="wordMuteTitle">
+                WORD MUTE
+              </div>
             </div>
 
             <!-- Mute banner (YCLH OFF のときだけ表示) -->
@@ -161,8 +181,8 @@
 
             <div class="row">
               <div class="row-text">
-                <div class="row-title">ミュート</div>
-                <div class="row-desc">
+                <div class="row-title" data-i18n="muteTitle">ミュート</div>
+                <div class="row-desc" data-i18n="muteDesc">
                   指定したワードが含まれるコメント・チャットを見た目のみ置換してミュートします
                 </div>
               </div>
@@ -170,8 +190,10 @@
 
             <label class="row toggle-row">
               <div class="row-text">
-                <div class="row-title">チャットにも適用</div>
-                <div class="row-desc">
+                <div class="row-title" data-i18n="muteApplyChatTitle">
+                  チャットにも適用
+                </div>
+                <div class="row-desc" data-i18n="muteApplyChatDesc">
                   チャット・チャットのリプレイにもミュートを適用します
                 </div>
               </div>
@@ -185,13 +207,17 @@
             <!-- Replace preset -->
             <div class="row">
               <div class="row-text">
-                <div class="row-title">置換設定</div>
+                <div class="row-title" data-i18n="replacePresetTitle">
+                  置換設定
+                </div>
               </div>
             </div>
             <div class="group" id="replacePresetGroup">
               <label class="row row-sub radio-row">
                 <div class="row-text">
-                  <div class="row-title">ミュートワードが含まれています</div>
+                  <div class="row-title" data-i18n="replacePresetDefaultTitle">
+                    ミュートワードが含まれています
+                  </div>
                 </div>
                 <span class="radio">
                   <input
@@ -206,7 +232,9 @@
               </label>
               <label class="row row-sub radio-row">
                 <div class="row-text">
-                  <div class="row-title">にゃーん</div>
+                  <div class="row-title" data-i18n="replacePresetNyanTitle">
+                    にゃーん
+                  </div>
                 </div>
                 <span class="radio">
                   <input
@@ -223,7 +251,9 @@
             <!-- list -->
             <div class="row">
               <div class="row-text">
-                <div class="row-title">ミュートリスト</div>
+                <div class="row-title" data-i18n="muteListTitle">
+                  ミュートリスト
+                </div>
               </div>
               <div id="muteCount" class="row-meta" aria-label="mute count">
                 0/15
@@ -237,6 +267,7 @@
                 id="muteAdd"
                 class="btn btn--ghost btn--add"
                 type="button"
+                data-i18n="muteAddButton"
               >
                 ＋ 追加
               </button>
@@ -249,14 +280,20 @@
       <footer class="footer">
         <div class="footer-card">
           <button id="reset" class="btn btn--ghost" type="button">
-            設定をリセット
-            <div class="footer-desc">YCLHの設定をすべて初期状態に戻します</div>
+            <span data-i18n="resetButton">設定をリセット</span>
+            <div class="footer-desc" data-i18n="resetDesc">
+              YCLHの設定をすべて初期状態に戻します
+            </div>
           </button>
 
           <div class="support">
             <div class="support-head">
-              <div class="support-title">コーヒーをおごる</div>
-              <div class="support-desc">開発の継続の励みになります</div>
+              <div class="support-title" data-i18n="supportTitle">
+                コーヒーをおごる
+              </div>
+              <div class="support-desc" data-i18n="supportDesc">
+                開発の継続の励みになります
+              </div>
             </div>
 
             <div class="support-actions">
@@ -265,6 +302,7 @@
                 href="https://buymeacoffee.com/jev.devx"
                 target="_blank"
                 rel="noopener noreferrer"
+                data-i18n="buyMeCoffeeButton"
               >
                 Buy Me a Coffee
               </a>
@@ -287,9 +325,16 @@
     <!-- Overlay (suspended のときだけ出す) -->
     <div id="statusOverlay" class="statusOverlay" hidden>
       <div class="statusOverlay__card" role="status" aria-live="polite">
-        <div class="statusOverlay__title">YCLH は一時停止中</div>
+        <div class="statusOverlay__title" data-i18n="statusOverlayTitle">
+          YCLH は一時停止中
+        </div>
         <div id="statusText" class="statusOverlay__text"></div>
-        <div id="statusHint" class="statusOverlay__hint" hidden>
+        <div
+          id="statusHint"
+          class="statusOverlay__hint"
+          hidden
+          data-i18n="statusOverlayHint"
+        >
           シアターモード解除 / ウィンドウ幅を広げると再開します
         </div>
       </div>
