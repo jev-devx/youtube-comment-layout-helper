@@ -1,9 +1,16 @@
 /* ------------------------------------------------------------
+ * stickyRoot
+ * ---------------------------------------------------------- */
+html[data-yclh="1"] #yclh-sticky-root {
+  position: sticky;
+  top: 72px;
+  z-index: 10;
+}
+
+/* ------------------------------------------------------------
  * layoutRoot
  * ---------------------------------------------------------- */
 html[data-yclh="1"] #yclh-layout-root {
-  /* outline: 2px solid #ff0; */
-
   /* 箱の高さ：sizing が入れた値 */
   height: var(--yclh-layout-h, 70vh);
   max-height: var(--yclh-layout-h, 70vh);
@@ -13,8 +20,6 @@ html[data-yclh="1"] #yclh-layout-root {
 }
 
 html[data-yclh="1"] #yclh-side {
-  /* outline: 3px solid #f00; */
-
   display: flex;
   flex-direction: column;
   gap: 12px;
@@ -132,7 +137,6 @@ html[data-yclh="1"] #yclh-panels {
  * ------------------- */
 /* related パネル自体 */
 #yclh-panel-related {
-  /* overflow: hidden; */
   min-height: 0;
   display: flex;
   flex-direction: column;
