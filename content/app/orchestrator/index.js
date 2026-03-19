@@ -173,7 +173,13 @@ export const createOrchestrator = () => {
   // ------------------------------------------------------------
   // state change
   // ------------------------------------------------------------
-  const isWatch = () => location.pathname === "/watch";
+  const isWatchLikePage = () => {
+    return (
+      location.pathname === "/watch" ||
+      !!document.querySelector("ytd-watch-flexy[video-id]") ||
+      !!document.querySelector("ytd-watch-flexy #secondary")
+    );
+  };
 
   const getViewportWidth = () => {
     const vv = window.visualViewport;
@@ -255,7 +261,7 @@ export const createOrchestrator = () => {
       return;
     }
 
-    if (!isWatch()) {
+    if (!isWatchLikePage()) {
       if (setSuspended("non-watch")) restore({ hard: false });
       return;
     }
@@ -342,6 +348,11 @@ export const createOrchestrator = () => {
   let navReapplyTimer = 0;
 
   const bumpNav = (reason) => {
+    if (!applied && settings.enabled && isWatchLikePage()) {
+      apply();
+      return;
+    }
+
     if (runtimeState.suspended) return;
 
     navSeq++;
@@ -2432,27 +2443,44 @@ export const createOrchestrator = () => {
   // ------------------------------------------------------------
   // public: apply
   // ------------------------------------------------------------
-  // 有効化のエントリ。まずwatch開始→tryApplyOnce、ダメなら短命boot監視でリトライ。
-  // 永久監視にしないため 4秒で監視停止する。
-  const apply = () => {
-    if (applied) return;
+  let bootstrapped = false;
 
-    // 先に環境判定（まだappliedにしない）
-    if (!settings.enabled) return;
-    if (!isWatch()) return;
-    if (isNarrowMode()) return;
-    if (isTheaterMode()) return;
-
-    applied = true;
-
-    lastCtxSig = "";
+  const ensureBootstrapped = () => {
+    if (bootstrapped) return;
+    bootstrapped = true;
 
     installNavDetectors();
+    startEnvWatch();
 
     // popupに「enabledになった」反映を即出す（この直後 env 判定でsuspendになる可能性もある）
     publishRuntime();
+  };
 
-    startEnvWatch();
+  const canApplyNow = () => {
+    if (!settings.enabled) return false;
+    if (!isWatchLikePage()) return false;
+    if (isNarrowMode()) return false;
+    if (isTheaterMode()) return false;
+    return true;
+  };
+
+  // 有効化のエントリ。まずwatch開始→tryApplyOnce、ダメなら短命boot監視でリトライ。
+  // 永久監視にしないため 4秒で監視停止する。
+  const apply = () => {
+    ensureBootstrapped();
+
+    // 先に環境判定（まだappliedにしない）
+    if (!canApplyNow()) {
+      evaluateEnvAndSync("apply-skip");
+      return;
+    }
+
+    // ここで初めて layout 適用フェーズ
+    if (!applied) {
+      applied = true;
+      lastCtxSig = "";
+    }
+
     evaluateEnvAndSync("apply");
     if (runtimeState.suspended) return;
 
@@ -2506,6 +2534,7 @@ export const createOrchestrator = () => {
     stopPickSecondChatView();
     stopPinChat();
     stopChatDocking();
+    stopChatAutoChase();
 
     // sizing停止
     sizing.stop();
