@@ -25,7 +25,7 @@ export const MESSAGES = {
     chatAutoTitle: "チャット・チャットのリプレイの表示方法",
     chatAutoRecommendedTitle: "おすすめ",
     chatAutoRecommendedDesc:
-      "生配信「チャット」<br>アーカイブ「上位のチャットのリプレイ」<br>を自動で選択します",
+      "生配信「チャット」<br>アーカイブ「チャットのリプレイ」<br>を自動で選択します",
     chatAutoDefaultTitle: "デフォルト",
     chatAutoDefaultDesc: "YouTubeの既定の挙動を使用します",
 
@@ -91,7 +91,7 @@ export const MESSAGES = {
     chatAutoTitle: "Chat / Chat Replay display method",
     chatAutoRecommendedTitle: "Recommended",
     chatAutoRecommendedDesc:
-      'Live "Chat"<br>Archive "Top Chat Replays"<br>Auto-selected',
+      'Live "Chat"<br>Archive "Chat Replays"<br>Auto-selected',
     chatAutoDefaultTitle: "Default",
     chatAutoDefaultDesc: "Use YouTube's default behavior",
 
